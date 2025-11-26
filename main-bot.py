@@ -7,8 +7,7 @@ import sqlite3
 import os
 import time
 from dotenv import load_dotenv
-from aiohttp import web
-import threading
+from aiohttp import web  # Importación global
 
 # ------------------------- CONFIGURACIÓN DEL BOT ---------------------------
 load_dotenv()
@@ -29,19 +28,23 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # ---------------------------------------------------------------------------
 
 # ----------------------- SERVIDOR WEB SIMPLE ------------------------------
-async def handle(request):
+async def handle_health_check(request):
+    """Manejador simple para health check"""
     return web.Response(text="Bot up")
 
-def run_web_server():
+async def start_web_server():
+    """Inicia el servidor web en el mismo bucle de eventos del bot"""
     app = web.Application()
-    app.router.add_get('/', handle)
-    web.run_app(app, host='0.0.0.0', port=8080)
-
-def start_web_server():
-    web_thread = threading.Thread(target=run_web_server)
-    web_thread.daemon = True
-    web_thread.start()
+    app.router.add_get('/', handle_health_check)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    
+    site = web.TCPSite(runner, '0.0.0.0', 8080)
+    await site.start()
+    
     print("🌐 Servidor web iniciado en puerto 8080")
+    return runner
 # ---------------------------------------------------------------------------
 
 # -------------------- CARGA BASE DATOS (DEFINICIONES) ----------------------
@@ -217,7 +220,7 @@ async def load_all():
 @bot.event
 async def on_ready():
     # Iniciar servidor web
-    start_web_server()
+    await start_web_server()
     
     # Cargar extensiones
     await load_all() 
