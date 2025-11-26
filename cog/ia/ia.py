@@ -10,7 +10,7 @@ import re
 class AICog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.api_key = "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"
+        self.api_key = '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'
         self.model = "tngtech/deepseek-r1t-chimera:free"
 
     @app_commands.command(name="ia", description="Consulta a la IA del Bot")
