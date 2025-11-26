@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 # ------------------------- CONFIGURACIÓN DEL BOT ---------------------------
 load_dotenv()
-TOKEN = os.getenv("DISCORD_TOKEN")
+TOKEN = "MTQyOTk2NDg3ODQ5MTE1NjQ5MA.Gr-o88.SRIGy3cSzDFx98rOBUAjhO7v6DkI3KB5Nizl-I"
 DB_FILE = "players.db"
 INITIAL_BALANCE = 500
 
