@@ -1,0 +1,21 @@
+Bot Discord Clase v4-final:
+  - ping
+  - economia
+    · saldo
+    · transferir
+    · recompensas diarias
+  - ia
+  - juegos
+    · blackjack
+    · wordless mejorado
+  - calendario:
+    · auto-sincronizado
+    · enlaces en el .env
+
+POR HACER (cuando se termine, será v4-final):
+  - inventarios
+  - objetos con imagenes locales
+  - base de datos que permita esto
+  - tienda local
+  - juego de rol por opciones aleatorio con imagenes
+  

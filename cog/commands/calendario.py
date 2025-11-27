@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+from dotenv import load_dotenv
 import os
 import importlib
 import sys
@@ -25,13 +26,13 @@ class CalendarSync:
         self.last_sync = None
         self.calendars = {
             'moodle': {
-                'url': "https://educacionadistancia.juntadeandalucia.es/centros/cordoba/calendar/export_execute.php?userid=25032&authtoken=34d527a5cd1651136ba52b73d6d0c2c43b6d29b6&preset_what=all&preset_time=recentupcoming",
+                'url': os.getenv("MOODLE_CALENDAR_URL"),
                 'name': "📚 Moodle",
                 'color': 0x00ff00,
                 'emoji': "📚"
             },
             'google': {
-                'url': "https://calendar.google.com/calendar/ical/ftorbal935%40g.educaand.es/private-31a710d22d0d29af1672256f3890d95d/basic.ics",
+                'url': os.getenv("GOOGLE_CALENDAR_URL"),
                 'name': "📅 Google Calendar",
                 'color': 0x4285f4,
                 'emoji': "📅"

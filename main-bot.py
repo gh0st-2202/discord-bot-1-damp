@@ -52,19 +52,21 @@ def setup_database():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Tabla de jugadores
+    # Tabla de jugadores (mejorada con sistema de recompensas diarias)
     c.execute("""
     CREATE TABLE IF NOT EXISTS players (
         discord_id TEXT PRIMARY KEY,
         username TEXT,
-        balance INTEGER DEFAULT 500
+        balance INTEGER DEFAULT 500,
+        daily_streak INTEGER DEFAULT 0,
+        last_daily TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
 
     conn.commit()
     conn.close()
-    print("✅ Base de datos verificada o creada correctamente.")
-
+    print("✅ Base de datos mejorada creada correctamente.")
 setup_database()
 # ---------------------------------------------------------------------------
 
