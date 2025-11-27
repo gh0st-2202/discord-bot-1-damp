@@ -3,6 +3,7 @@ from discord import app_commands
 import time
 import asyncio
 import sqlite3
+from cog.juegos.wordless import WORD_LIST
 
 # Funciones de base de datos locales
 DB_FILE = "players.db"
@@ -72,6 +73,14 @@ def setup_command(wordless_group, cog):
         if not palabra.isalpha():
             await interaction.response.send_message(
                 "❌ La palabra solo debe contener letras (sin números ni símbolos).",
+                ephemeral=True
+            )
+            return
+        
+        # ✅ NUEVA VALIDACIÓN: Verificar que la palabra esté en la lista de palabras válidas
+        if palabra not in WORD_LIST:
+            await interaction.response.send_message(
+                "❌ Esa palabra no existe en español o no es válida para el juego.",
                 ephemeral=True
             )
             return

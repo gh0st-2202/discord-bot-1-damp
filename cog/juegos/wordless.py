@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from time import sleep
 import os
 import importlib
 import sys
@@ -23,45 +24,115 @@ REWARD_BASE = 100
 
 # Lista de palabras para el juego
 WORD_LIST = [
-    "casa", "perro", "gato", "arbol", "flor", "sol", "luna", "agua", "fuego", "tierra",
-    "aire", "viento", "nube", "lluv", "nieve", "mar", "rio", "monte", "valle", "campo",
-    "bosque", "playa", "isla", "pueblo", "ciudad", "calle", "coche", "moto", "bici", "avion",
-    "barco", "tren", "bus", "camion", "puente", "edificio", "casa", "puerta", "ventana", "techo",
-    "suelo", "pared", "mesa", "silla", "cama", "sofa", "armario", "cocina", "baño", "comedor",
-    "salon", "dormir", "comer", "beber", "jugar", "trabajar", "estudiar", "leer", "escribir", "pintar",
-    "musica", "cancion", "baile", "teatro", "cine", "libro", "revista", "periodico", "radio", "tv",
-    "ordenador", "movil", "tablet", "internet", "red", "web", "email", "chat", "video", "foto",
-    "amigo", "familia", "padre", "madre", "hijo", "hija", "hermano", "hermana", "abuelo", "abuela",
-    "tio", "tia", "primo", "prima", "vecino", "companero", "jefe", "empleado", "cliente", "proveedor",
-    "tiempo", "futuro", "pasado", "presente", "ayer", "hoy", "manana", "semana", "mes", "ano",
-    "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
-    "noviembre", "diciembre", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo",
-    "primavera", "verano", "otono", "invierno", "calor", "frio", "fresco", "templado", "humedo", "seco",
-    "norte", "sur", "este", "oeste", "derecha", "izquierda", "arriba", "abajo", "delante", "detras",
-    "centro", "medio", "borde", "esquina", "linea", "curva", "recta", "circulo", "cuadrado", "triangulo",
-    "rojo", "azul", "verde", "amarillo", "naranja", "rosa", "morado", "blanco", "negro", "gris",
-    "claro", "oscuro", "brillante", "opaco", "transparente", "sólido", "liquido", "gas", "fuego", "tierra",
-    "agua", "aire", "fuego", "metal", "madera", "piedra", "cristal", "plastico", "papel", "tela",
-    "comida", "agua", "pan", "leche", "carne", "pescado", "fruta", "verdura", "arroz", "pasta",
-    "sopa", "ensalada", "postre", "dulce", "salado", "amargo", "acido", "picante", "suave", "fuerte",
-    "rapido", "lento", "grande", "pequeno", "alto", "bajo", "largo", "corto", "ancho", "estrecho",
-    "pesado", "ligero", "duro", "blando", "suave", "áspero", "liso", "rugoso", "caliente", "frio",
-    "nuevo", "viejo", "joven", "antiguo", "moderno", "actual", "futuro", "pasado", "presente", "eterno"
-]
+    "abaco", "abajo", "abeja", "abono", "abril", "abrir", "abuso", "acabo", "acaso", "acero", 
+    "acido", "actor", "acusa", "adios", "adobo", "agudo", "aguja", "ahogo", "ahora", "alaba", 
+    "aldea", "algun", "altar", "amaba", "amada", "amado", "amiga", "amigo", "ancho", "andar", 
+    "angel", "animo", "antes", "apoyo", "apuro", "arena", "arbol", "ardor", "atada", "armas", 
+    "aroma", "arroz", "asado", "ataca", "atado", "atras", "audio", "autor", "avena", "avisa", 
+    "aviso", "ayuda", "ayuno", "anoso", "baila", "baile", "bajar", "balas", "balde", "banco", 
+    "banda", "barba", "barca", "barco", "barra", "barro", "basta", "batir", "bazar", "beber", 
+    "bella", "bello", "besar", "bicho", "blusa", "bocas", "bolsa", "bolso", "bomba", "borde", 
+    "botas", "boton", "boxeo", "bravo", "brazo", "breve", "brisa", "broma", "brote", "bruja", 
+    "brujo", "bruto", "bueno", "bulto", "buque", "burla", "burro", "busca", "busto", "caber", 
+    "cable", "cabra", "cacao", "caida", "caido", "caldo", "calle", "calma", "calor", "calvo", 
+    "campo", "canal", "canoa", "canta", "cante", "canto", "capaz", "carga", "cargo", "carne", 
+    "carpa", "carro", "carta", "casar", "casas", "casco", "causa", "cazar", "cejas", "celda", 
+    "cenar", "cerdo", "cerro", "cesar", "cesta", "cetro", "chica", "chico", "chile", "china", 
+    "ciclo", "cielo", "cifra", "cinco", "cinta", "circo", "citar", "civil", "clara", "claro", 
+    "clase", "clave", "clavo", "clima", "cobra", "cobre", "coche", "color", "comer", "copia", 
+    "coral", "corre", "corta", "corte", "corto", "cosas", "coser", "costa", "crear", "crece", 
+    "creer", "crema", "crian", "criba", "cruce", "crudo", "cruel", "cruza", "cuero", "cueva", 
+    "cuida", "culpa", "culto", "cuota", "curar", "curso", "curva", "danza", "deber", "debil", 
+    "decir", "dejar", "densa", "denso", "desde", "desea", "deseo", "deuda", "diana", "dicen", 
+    "dicha", "dicho", "dieta", "digna", "digno", "diosa", "disco", "dobla", "doble", "dolor", 
+    "donde", "dorso", "dosis", "drama", "ducha", "dudar", "duena", "dueno", "dulce", "echar", 
+    "elige", "ellas", "ellos", "emite", "enano", "enero", "enojo", "entra", "entre", "envio", 
+    "error", "espia", "estar", "estos", "estoy", "etapa", "evita", "exito", "facil", "falda", 
+    "falla", "fallo", "falsa", "falta", "fango", "farol", "farsa", "fatal", "fauna", "favor", 
+    "fecha", "feliz", "feria", "firma", "firme", "flaco", "flojo", "flora", "flota", "fondo", 
+    "forma", "freno", "fresa", "frito", "fruta", "fruto", "fuego", "fuera", "fugaz", "fumar", 
+    "furia", "gafas", "gallo", "ganar", "garra", "garza", "gasta", "gasto", "gente", "gesto", 
+    "girar", "globo", "golpe", "gordo", "gorra", "gozar", "grado", "grano", "grasa", "grave", 
+    "grito", "grupo", "guapa", "guapo", "guiar", "gusta", "gusto", "haber", "habil", "habla", 
+    "hacer", "hacha", "hacia", "halla", "hasta", "hecho", "herir", "hielo", "hiena", "hogar", 
+    "hondo", "hongo", "honor", "hotel", "huevo", "huida", "humor", "ideal", "igual", "islas", 
+    "jamon", "jarra", "jaula", "joven", "juega", "juego", "jueza", "jugar", "junio", "junta", 
+    "junto", "justo", "labio", "labor", "ladra", "leche", "legal", "lejos", "lento", "leona", 
+    "letra", "libra", "libre", "libro", "lider", "ligar", "limon", "linda", "lindo", "linea", 
+    "listo", "llama", "llave", "llega", "llena", "lleva", "llora", "local", "logra", "logro", 
+    "lucha", "lucir", "luego", "lugar", "lunes", "madre", "magia", "manda", "mango", "mania", 
+    "manta", "marca", "marco", "marea", "marzo", "matar", "mayor", "media", "medio", "mejor", 
+    "menor", "menos", "menta", "mente", "mesas", "metal", "meter", "metro", "miedo", "milla", 
+    "mirar", "mismo", "mitad", "mojar", "molde", "monja", "monta", "monte", "moral", "morir", 
+    "mosca", "motor", "mover", "mucho", "muela", "muere", "mueve", "mujer", "multa", "mundo", 
+    "museo", "musgo", "nacer", "nadar", "nariz", "necio", "negar", "negro", "nieta", "nieto", 
+    "nieve", "nivel", "noble", "noche", "nopal", "norte", "notar", "novia", "novio", "nubes", 
+    "nueve", "nuevo", "nunca", "obras", "ocaso", "ocupa", "odiar", "oeste", "oliva", "olivo", 
+    "opera", "opina", "orden", "oreja", "osado", "otoño", "oveja", "pacto", "padre", "pagar", 
+    "palma", "panda", "panza", "papel", "parar", "pared", "parte", "pasar", "paseo", "pasta", 
+    "pasto", "patio", "pausa", "pecar", "pecho", "pedir", "pegar", "peine", "pelar", "pelea", 
+    "penal", "perla", "perro", "pesar", "pesca", "peste", "piano", "picar", "pieza", "pilar", 
+    "pinta", "pinto", "pista", "pizza", "placa", "plano", "plata", "plato", "playa", "plaza", 
+    "plazo", "pleno", "plomo", "pluma", "pobre", "poder", "poema", "poeta", "pollo", "polvo", 
+    "poner", "porta", "posee", "poste", "potro", "prado", "presa", "preso", "prima", "primo", 
+    "prisa", "prosa", "pudor", "puede", "pulga", "pulpo", "pulso", "punta", "punto", "quedo", 
+    "queja", "quema", "queso", "quien", "quita", "radio", "raido", "rampa", "rango", "rapto", 
+    "rasca", "raton", "rayas", "razon", "recto", "redes", "regla", "reina", "reino", "reloj", 
+    "renta", "resto", "reyes", "rezar", "riego", "rigor", "rival", "rison", "ritmo", "robar", 
+    "roble", "robot", "rodeo", "rogar", "rollo", "rompe", "ronco", "ronda", "rosas", "abeto", 
+    "rubia", "rubio", "rueda", "ruego", "rugir", "ruido", "ruina", "rumba", "rumbo", "rural", 
+    "saber", "sabio", "sabor", "sacar", "saldo", "salir", "salon", "salsa", "salta", "salto", 
+    "salud", "salva", "salvo", "sanar", "santa", "santo", "sauce", "secar", "sello", "selva", 
+    "senda", "senil", "seria", "serie", "serio", "sesgo", "senal", "senas", "senor", "short", 
+    "sidra", "siete", "siglo", "signo", "sigue", "silla", "sirve", "sismo", "sitio", "sobra", 
+    "sobre", "socio", "solar", "soler", "sonar", "sopla", "sordo", "sonar", "suave", "subir", 
+    "sucia", "sucio", "sudar", "suela", "suelo", "suena", "sueno", "suena", "suele", "sueño", 
+    "sufre", "sumar", "super", "surge", "susto", "tabla", "tacto", "talla", "tango", "tanto", 
+    "tapar", "tarde", "tardo", "tarea", "tarro", "tarta", "tazas", "techo", "tecla", "tedio", 
+    "tejer", "temer", "temor", "tenaz", "tener", "tenis", "tenor", "terco", "texto", "tiene", 
+    "tigre", "tinta", "tinte", "tirar", "tocar", "tomar", "tonto", "toque", "tordo", "torpe", 
+    "torre", "torso", "toser", "total", "traer", "trago", "traje", "trama", "trata", "trato", 
+    "trazo", "tribu", "trigo", "trono", "tropa", "trote", "trozo", "truco", "tumba", "tumor", 
+    "tunel", "turno", "tutor", "unico", "unido", "union", "usaba", "usada", "usado", "usted", 
+    "usual", "utero", "vacas", "vacia", "vacio", "vagar", "valer", "valle", "valor", "vamos", 
+    "vapor", "vasto", "veces", "vejez", "velar", "veloz", "vemos", "vende", "vengo", "venir", 
+    "venta", "veraz", "verbo", "verde", "verso", "viaja", "viaje", "vicio", "video", "vieja", 
+    "viejo", "viene", "vigia", "vigor", "villa", "vimos", "virus", "visor", "vista", "viste", 
+    "visto", "viuda", "viudo", "vivir", "vocal", "volar", "votar", "vuela", "vuelo", "yendo", 
+    "yerba", "yogur", "zarza", "zorro", # 754
+    
+    # Ampliación extra (palabras probadas no existentes)
+    "apodo", "riada", "balsa", "aguas", "ahoga", "iglus", "aereo", "braga", "tanga"
+    ]
+    
+print(f"Tamaño de la lista de Wordless: {len(WORD_LIST)} palabras")
 
 # Funciones de utilidad para wordless
 def choose_word():
     return random.choice(WORD_LIST)
 
 def evaluate_guess(guess, secret):
-    result = []
-    for i, letter in enumerate(guess):
-        if letter == secret[i]:
-            result.append("🟩")
-        elif letter in secret:
-            result.append("🟨")
-        else:
-            result.append("⬛")
+    length = len(secret)
+    result = ["⬛"] * length
+    secret_list = list(secret)
+    guess_list = list(guess)
+
+    # Primera pasada: verdes (posición exacta)
+    for i in range(length):
+        if guess_list[i] == secret_list[i]:
+            result[i] = "🟩"
+            secret_list[i] = None
+            guess_list[i] = None
+
+    # Segunda pasada: amarillas (letra correcta pero posición incorrecta)
+    for i in range(length):
+        if guess_list[i] is not None:
+            if guess_list[i] in secret_list:
+                result[i] = "🟨"
+                # Removemos la primera ocurrencia en secret_list
+                j = secret_list.index(guess_list[i])
+                secret_list[j] = None
+
     return "".join(result)
 
 # Funciones de base de datos locales
@@ -161,6 +232,7 @@ class WordlessCog(commands.Cog):
             game = self.games[user_id]
             try:
                 # Eliminar canal
+                sleep(3)
                 await game.channel.delete(reason="Partida de Wordless terminada")
             except Exception as e:
                 print(f"❌ Error al eliminar canal: {e}")
