@@ -33,19 +33,20 @@ def claim_daily_reward(discord_id, username):
     last_daily = player[4] if len(player) > 4 else None
     
     now = datetime.datetime.now()
+    today = now.date()
     
-    # Verificar si ya reclamó hoy
+    # Verificar si ya reclamó hoy (comparando solo la fecha, no la hora)
     if last_daily:
-        last_daily_date = datetime.datetime.fromisoformat(last_daily)
-        if last_daily_date.date() == now.date():
+        last_daily_date = datetime.datetime.fromisoformat(last_daily).date()
+        if last_daily_date == today:
             conn.close()
             return None, None, None, "already_claimed"
     
     # Calcular nueva racha
     new_streak = 1
     if last_daily:
-        last_daily_date = datetime.datetime.fromisoformat(last_daily)
-        days_diff = (now.date() - last_daily_date.date()).days
+        last_daily_date = datetime.datetime.fromisoformat(last_daily).date()
+        days_diff = (today - last_daily_date).days
         
         if days_diff == 1:
             new_streak = current_streak + 1
@@ -88,18 +89,12 @@ def setup_command(economy_group, cog):
         reward, new_streak, special_bonus, status = claim_daily_reward(user_id, username)
         
         if status == "already_claimed":
-            # Obtener la hora del próximo daily
-            conn = sqlite3.connect(DB_FILE)
-            c = conn.cursor()
-            c.execute("SELECT last_daily FROM players WHERE discord_id = ?", (user_id,))
-            last_daily = c.fetchone()[0]
-            conn.close()
+            # Calcular tiempo hasta la medianoche (próximo día)
+            now = datetime.datetime.now()
+            tomorrow = now.date() + datetime.timedelta(days=1)
+            midnight = datetime.datetime.combine(tomorrow, datetime.time.min)
             
-            last_time = datetime.datetime.fromisoformat(last_daily)
-            next_daily = last_time + datetime.timedelta(days=1)
-            next_daily_time = next_daily.replace(hour=0, minute=0, second=0, microsecond=0)
-            
-            time_remaining = next_daily_time - datetime.datetime.now()
+            time_remaining = midnight - now
             hours_remaining = time_remaining.seconds // 3600
             minutes_remaining = (time_remaining.seconds % 3600) // 60
             
@@ -152,4 +147,3 @@ def setup_command(economy_group, cog):
         embed.set_footer(text="Vuelve mañana para mantener tu racha y obtener más recompensas!")
         
         await interaction.response.send_message(embed=embed)
-

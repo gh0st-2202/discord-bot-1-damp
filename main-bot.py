@@ -7,7 +7,8 @@ import sqlite3
 import os
 import time
 from dotenv import load_dotenv
-from aiohttp import web  # Importación global
+from aiohttp import web
+import urllib.parse
 
 # ------------------------- CONFIGURACIÓN DEL BOT ---------------------------
 load_dotenv()
@@ -27,15 +28,273 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 # ---------------------------------------------------------------------------
 
-# ----------------------- SERVIDOR WEB SIMPLE ------------------------------
-async def handle_health_check(request):
-    """Manejador simple para health check"""
-    return web.Response(text="Bot up")
+# ----------------------- SERVIDOR WEB CON EXPLORADOR DE ARCHIVOS -----------
+def get_file_tree(startpath=".", max_depth=3):
+    """Genera el árbol de archivos y directorios"""
+    tree = []
+    for root, dirs, files in os.walk(startpath):
+        level = root.replace(startpath, '').count(os.sep)
+        if level > max_depth:
+            continue
+            
+        # Excluir algunas carpetas del bot por seguridad
+        exclude_dirs = ['__pycache__', '.git', 'node_modules']
+        dirs[:] = [d for d in dirs if d not in exclude_dirs]
+        
+        indent = '  ' * level
+        tree.append(f'{indent}📁 {os.path.basename(root)}/')
+        subindent = '  ' * (level + 1)
+        
+        for file in files:
+            # Excluir algunos archivos por seguridad
+            if file.endswith(('.pyc', '.env', '.db')):
+                continue
+            file_path = os.path.join(root, file)
+            file_size = os.path.getsize(file_path)
+            tree.append(f'{subindent}📄 {file} ({file_size} bytes)')
+    
+    return '\n'.join(tree)
+
+def generate_file_list_html(base_path="."):
+    """Genera HTML con la lista de archivos navegable"""
+    # Normalizar y asegurar que no salgamos del directorio seguro
+    safe_base = os.path.abspath(base_path)
+    
+    html = []
+    html.append('''
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Explorador de Archivos</title>
+        <style>
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            .header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+                text-align: center;
+            }
+            .file-explorer {
+                background: #2d2d2d;
+                border-radius: 10px;
+                padding: 20px;
+                margin-bottom: 20px;
+            }
+            .breadcrumb {
+                background: #3d3d3d;
+                padding: 10px;
+                border-radius: 5px;
+                margin-bottom: 15px;
+                font-size: 14px;
+            }
+            .file-list {
+                list-style: none;
+                padding: 0;
+            }
+            .file-item {
+                padding: 10px;
+                margin: 5px 0;
+                background: #3d3d3d;
+                border-radius: 5px;
+                display: flex;
+                align-items: center;
+                transition: background 0.3s;
+            }
+            .file-item:hover {
+                background: #4d4d4d;
+            }
+            .file-icon {
+                margin-right: 10px;
+                font-size: 18px;
+            }
+            .file-name {
+                flex-grow: 1;
+            }
+            .file-size {
+                color: #888;
+                font-size: 12px;
+                margin-left: 10px;
+            }
+            .download-btn {
+                background: #4CAF50;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 3px;
+                cursor: pointer;
+                text-decoration: none;
+                font-size: 12px;
+            }
+            .download-btn:hover {
+                background: #45a049;
+            }
+            .folder-link {
+                color: #64b5f6;
+                text-decoration: none;
+            }
+            .folder-link:hover {
+                text-decoration: underline;
+            }
+            .current-path {
+                word-break: break-all;
+                background: #2d2d2d;
+                padding: 10px;
+                border-radius: 5px;
+                font-family: monospace;
+                margin-bottom: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>🖥️ Explorador de Archivos del Bot</h1>
+            <p>Navega por los archivos y directorios disponibles</p>
+        </div>
+    ''')
+    
+    # Breadcrumb navigation
+    html.append('<div class="breadcrumb">')
+    html.append('<a href="/" class="folder-link">🏠 Inicio</a>')
+    html.append('</div>')
+    
+    # Current path
+    html.append(f'<div class="current-path">📍 Ruta actual: {safe_base}</div>')
+    
+    # File list
+    html.append('<div class="file-explorer">')
+    html.append('<h3>📂 Contenido:</h3>')
+    html.append('<ul class="file-list">')
+    
+    try:
+        # List directories first
+        items = []
+        for item in os.listdir(safe_base):
+            item_path = os.path.join(safe_base, item)
+            
+            # Excluir carpetas y archivos sensibles
+            if item.startswith(('.', '__')) or item in ['__pycache__', '.git', 'node_modules']:
+                continue
+                
+            items.append((item, item_path, os.path.isdir(item_path)))
+        
+        # Sort: directories first, then files
+        items.sort(key=lambda x: (not x[2], x[0].lower()))
+        
+        for item, item_path, is_dir in items:
+            if is_dir:
+                # Es un directorio
+                html.append(f'''
+                <li class="file-item">
+                    <span class="file-icon">📁</span>
+                    <span class="file-name">
+                        <a href="/browse?path={urllib.parse.quote(item_path)}" class="folder-link">{item}/</a>
+                    </span>
+                    <span class="file-size">[DIRECTORIO]</span>
+                </li>
+                ''')
+            else:
+                # Es un archivo
+                file_size = os.path.getsize(item_path)
+                size_str = f"{file_size} bytes"
+                if file_size > 1024:
+                    size_str = f"{file_size/1024:.1f} KB"
+                if file_size > 1024*1024:
+                    size_str = f"{file_size/(1024*1024):.1f} MB"
+                
+                html.append(f'''
+                <li class="file-item">
+                    <span class="file-icon">📄</span>
+                    <span class="file-name">{item}</span>
+                    <span class="file-size">{size_str}</span>
+                    <a href="/download?file={urllib.parse.quote(item_path)}" class="download-btn">📥 Descargar</a>
+                </li>
+                ''')
+                
+    except PermissionError:
+        html.append('<li class="file-item">❌ Permiso denegado para acceder a este directorio</li>')
+    except Exception as e:
+        html.append(f'<li class="file-item">❌ Error: {str(e)}</li>')
+    
+    html.append('</ul>')
+    html.append('</div>')
+    
+    # Tree view
+    html.append('<div class="file-explorer">')
+    html.append('<h3>🌳 Vista de árbol (primeros 3 niveles):</h3>')
+    html.append('<pre style="background: #1e1e1e; padding: 15px; border-radius: 5px; overflow-x: auto;">')
+    html.append(get_file_tree(safe_base))
+    html.append('</pre>')
+    html.append('</div>')
+    
+    html.append('</body></html>')
+    
+    return ''.join(html)
+
+async def handle_file_explorer(request):
+    """Manejador principal del explorador de archivos"""
+    return web.Response(
+        text=generate_file_list_html(),
+        content_type='text/html'
+    )
+
+async def handle_browse(request):
+    """Manejador para navegar por directorios"""
+    path = request.query.get('path', '')
+    if not path:
+        return web.HTTPFound('/')
+    
+    try:
+        # Verificar que el path es seguro
+        safe_path = os.path.abspath(path)
+        if not os.path.exists(safe_path) or not os.path.isdir(safe_path):
+            return web.Response(text="Directorio no encontrado", status=404)
+            
+        return web.Response(
+            text=generate_file_list_html(safe_path),
+            content_type='text/html'
+        )
+    except Exception as e:
+        return web.Response(text=f"Error: {str(e)}", status=500)
+
+async def handle_download(request):
+    """Manejador para descargar archivos"""
+    file_path = request.query.get('file', '')
+    if not file_path:
+        return web.Response(text="Archivo no especificado", status=400)
+    
+    try:
+        # Verificar que el path es seguro y el archivo existe
+        safe_path = os.path.abspath(file_path)
+        if not os.path.exists(safe_path) or not os.path.isfile(safe_path):
+            return web.Response(text="Archivo no encontrado", status=404)
+        
+        # Verificar que no es un archivo sensible
+        sensitive_extensions = ['.env']
+        if any(safe_path.endswith(ext) for ext in sensitive_extensions):
+            return web.Response(text="No se puede descargar este tipo de archivo", status=403)
+        
+        return web.FileResponse(safe_path)
+    except Exception as e:
+        return web.Response(text=f"Error: {str(e)}", status=500)
 
 async def start_web_server():
-    """Inicia el servidor web en el mismo bucle de eventos del bot"""
+    """Inicia el servidor web con el explorador de archivos"""
     app = web.Application()
-    app.router.add_get('/', handle_health_check)
+    
+    # Rutas
+    app.router.add_get('/', handle_file_explorer)
+    app.router.add_get('/browse', handle_browse)
+    app.router.add_get('/download', handle_download)
     
     runner = web.AppRunner(app)
     await runner.setup()
@@ -44,6 +303,7 @@ async def start_web_server():
     await site.start()
     
     print("🌐 Servidor web iniciado en puerto 8080")
+    print("📁 Explorador de archivos disponible en: http://0.0.0.0:8080")
     return runner
 # ---------------------------------------------------------------------------
 
