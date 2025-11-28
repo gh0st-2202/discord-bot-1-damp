@@ -98,8 +98,8 @@ def attempt_robbery(robber_id, victim_id, robber_username, victim_username):
     robber_balance = robber_data[2]
     victim_balance = victim_data[2]
     
-    # Verificar que el ladrón tenga al menos 1 moneda (para evitar spam de usuarios con 0)
-    if robber_balance < 1:
+    # Verificar que el ladrón tenga al menos 0 monedas
+    if robber_balance < 0:
         conn.close()
         return "insufficient_funds", 0, 0, 0, 0
     
@@ -190,16 +190,18 @@ def setup_command(economy_group, cog):
             robber_id, victim_id, robber_username, victim_username
         )
         
+        # Solo actualizar el cooldown si el robo se intentó realmente
+        # (no cuando hay fondos insuficientes o víctima pobre)
+        if result not in ["insufficient_funds", "victim_poor"]:
+            update_rob_cooldown(robber_id)
+        
         # Obtener el nuevo balance del ladrón después del robo
         robber_new_balance = get_player_local(robber_id, robber_username)[2]
-        
-        # Actualizar cooldown
-        update_rob_cooldown(robber_id)
         
         if result == "insufficient_funds":
             embed = discord.Embed(
                 title="💸 Fondos Insuficientes",
-                description="Necesitas al menos 1 moneda para intentar un robo.",
+                description="No puedes robar mientras tengas un balance negativo.",
                 color=discord.Color.red()
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -309,7 +311,7 @@ def setup_command(economy_group, cog):
             value=f"• Probabilidad de éxito: {ROB_SUCCESS_RATE*100:.0f}%\n"
                   f"• Penalización por fallo: {ROB_PENALTY_PERCENT*100:.0f}% del monto intentado\n"
                   f"• Enfriamiento: {ROB_COOLDOWN//60} minutos\n"
-                  f"• Mínimo para robar: 1 moneda",
+                  f"• Mínimo para robar: 0 monedas (no se permite balance negativo)",
             inline=False
         )
         
