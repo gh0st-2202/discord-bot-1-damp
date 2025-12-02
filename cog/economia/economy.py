@@ -5,9 +5,18 @@ import os
 import importlib
 import sys
 import random
-import sqlite3
 import asyncio
 import time
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
+
+# Inicializar cliente de Supabase
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(supabase_url, supabase_key)
 
 # Grupo de comandos de economía
 economy_group = app_commands.Group(
@@ -16,38 +25,76 @@ economy_group = app_commands.Group(
     default_permissions=None
 )
 
-# Funciones de base de datos locales
-DB_FILE = "players.db"
+# Configuración inicial
 INITIAL_BALANCE = 500
 
-def get_player_local(discord_id, username):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT * FROM players WHERE discord_id = ?", (discord_id,))
-    player = c.fetchone()
-    if not player:
-        c.execute("INSERT INTO players (discord_id, username, balance) VALUES (?, ?, ?)",
-                  (discord_id, username, INITIAL_BALANCE))
-        conn.commit()
-        c.execute("SELECT * FROM players WHERE discord_id = ?", (discord_id,))
-        player = c.fetchone()
-    conn.close()
-    return player
+# Funciones de base de datos con Supabase
+async def get_player(discord_id, username):
+    """Obtiene o crea un jugador en Supabase"""
+    try:
+        # Buscar jugador existente
+        response = supabase.table("players").select("*").eq("discord_id", discord_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        else:
+            # Crear nuevo jugador
+            new_player = {
+                "discord_id": discord_id,
+                "username": username,
+                "balance": INITIAL_BALANCE,
+                "created_at": time.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            response = supabase.table("players").insert(new_player).execute()
+            return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"Error en get_player: {e}")
+        return None
 
-def update_balance_local(discord_id, amount):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("UPDATE players SET balance = balance + ? WHERE discord_id = ?", (amount, discord_id))
-    conn.commit()
-    conn.close()
+async def update_balance(discord_id, amount):
+    """Actualiza el balance de un jugador en Supabase"""
+    try:
+        # Primero obtener el balance actual
+        response = supabase.table("players").select("balance").eq("discord_id", discord_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            current_balance = response.data[0]["balance"]
+            new_balance = current_balance + amount
+            
+            # Actualizar el balance
+            supabase.table("players").update({"balance": new_balance}).eq("discord_id", discord_id).execute()
+            return new_balance
+        return None
+    except Exception as e:
+        print(f"Error en update_balance: {e}")
+        return None
 
-def get_leaderboard_local():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT username, balance FROM players ORDER BY balance DESC")
-    data = c.fetchall()
-    conn.close()
-    return data
+async def get_leaderboard(limit=10):
+    """Obtiene el leaderboard desde Supabase"""
+    try:
+        response = supabase.table("players").select("username, balance").order("balance", desc=True).limit(limit).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"Error en get_leaderboard: {e}")
+        return []
+
+async def get_player_by_discord_id(discord_id):
+    """Obtiene un jugador específico por discord_id"""
+    try:
+        response = supabase.table("players").select("*").eq("discord_id", discord_id).execute()
+        return response.data[0] if response.data and len(response.data) > 0 else None
+    except Exception as e:
+        print(f"Error en get_player_by_discord_id: {e}")
+        return None
+
+async def set_balance(discord_id, amount):
+    """Establece un balance específico para un jugador"""
+    try:
+        supabase.table("players").update({"balance": amount}).eq("discord_id", discord_id).execute()
+        return True
+    except Exception as e:
+        print(f"Error en set_balance: {e}")
+        return False
 
 # Función global para actualizar leaderboard
 async def update_global_leaderboard(bot):
@@ -58,16 +105,16 @@ async def update_global_leaderboard(bot):
         return
     
     try:
-        leaderboard = get_leaderboard_local()
+        leaderboard = await get_leaderboard(10)
         await channel.purge()
         
         embed = discord.Embed(title="🏆 TABLA DE LÍDERES GLOBAL", color=discord.Color.gold())
         
-        for i, (name, balance) in enumerate(leaderboard[:10], start=1):
+        for i, player in enumerate(leaderboard[:10], start=1):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
             embed.add_field(
-                name=f"{medal} {name}", 
-                value=f"```{balance:,} monedas```", 
+                name=f"{medal} {player['username']}", 
+                value=f"```{player['balance']:,} monedas```", 
                 inline=False
             )
         
@@ -77,6 +124,20 @@ async def update_global_leaderboard(bot):
         
     except Exception as e:
         print(f"❌ Error actualizando leaderboard: {e}")
+        
+# Exportar funciones para que otros módulos puedan importarlas
+__all__ = ['get_player', 'update_balance', 'get_leaderboard', 'update_player', 'get_player_by_discord_id', 'set_balance', 'supabase']
+
+# Nota: Asegúrate de que estas funciones existan en tu economy.py
+# Si no tienes update_player, agrégalo:
+async def update_player(discord_id, data):
+    """Actualiza múltiples campos de un jugador en Supabase"""
+    try:
+        supabase.table("players").update(data).eq("discord_id", discord_id).execute()
+        return True
+    except Exception as e:
+        print(f"Error en update_player: {e}")
+        return False
 
 class EconomyCog(commands.Cog):
     def __init__(self, bot):

@@ -1,41 +1,14 @@
 import discord
 from discord import app_commands
-import sqlite3
+import sys
+import os
 
-# Funciones de base de datos locales
-DB_FILE = "players.db"
-INITIAL_BALANCE = 500
+# Agregar el directorio padre al path para importar desde economy.py
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def get_player_local(discord_id, username):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT * FROM players WHERE discord_id = ?", (discord_id,))
-    player = c.fetchone()
-    if not player:
-        c.execute("INSERT INTO players (discord_id, username, balance) VALUES (?, ?, ?)",
-                  (discord_id, username, INITIAL_BALANCE))
-        conn.commit()
-        c.execute("SELECT * FROM players WHERE discord_id = ?", (discord_id,))
-        player = c.fetchone()
-    conn.close()
-    return player
+# Importar desde el módulo principal
+from economy import get_player, update_balance, get_leaderboard
 
-def update_balance_local(discord_id, amount):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("UPDATE players SET balance = balance + ? WHERE discord_id = ?", (amount, discord_id))
-    conn.commit()
-    conn.close()
-
-def get_leaderboard_local():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT username, balance FROM players ORDER BY balance DESC")
-    data = c.fetchall()
-    conn.close()
-    return data
-
-# Función global para actualizar leaderboard
 async def update_global_leaderboard(bot):
     CHANNEL_LEADERBOARD_ID = 1430215076769435800
     channel = bot.get_channel(CHANNEL_LEADERBOARD_ID)
@@ -44,16 +17,16 @@ async def update_global_leaderboard(bot):
         return
     
     try:
-        leaderboard = get_leaderboard_local()
+        leaderboard = await get_leaderboard(10)
         await channel.purge()
         
         embed = discord.Embed(title="🏆 TABLA DE LÍDERES GLOBAL", color=discord.Color.gold())
         
-        for i, (name, balance) in enumerate(leaderboard[:10], start=1):
+        for i, player in enumerate(leaderboard[:10], start=1):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
             embed.add_field(
-                name=f"{medal} {name}", 
-                value=f"```{balance:,} monedas```", 
+                name=f"{medal} {player['username']}", 
+                value=f"```{player['balance']:,} monedas```", 
                 inline=False
             )
         
@@ -73,26 +46,42 @@ def setup_command(economy_group, cog):
         if cantidad <= 0:
             await interaction.response.send_message("❌ La cantidad debe ser positiva.", ephemeral=True)
             return
-    
+        
         remitente_id = str(interaction.user.id)
         destinatario_id = str(destinatario.id)
-        remitente = get_player_local(remitente_id, interaction.user.name)
-        get_player_local(destinatario_id, destinatario.name)
-    
-        if remitente[2] < cantidad:
-            await interaction.response.send_message("💸 No tienes suficiente dinero para esta transferencia.", ephemeral=True)
-            return
-    
-        update_balance_local(remitente_id, -cantidad)
-        update_balance_local(destinatario_id, cantidad)
         
-        embed = discord.Embed(
-            title="✅ Transferencia Exitosa",
-            color=discord.Color.green()
-        )
-        embed.add_field(name="De", value=interaction.user.mention, inline=True)
-        embed.add_field(name="Para", value=destinatario.mention, inline=True)
-        embed.add_field(name="Cantidad", value=f"**{cantidad:,}** monedas", inline=True)
-    
-        await interaction.response.send_message(embed=embed)
-        await update_global_leaderboard(cog.bot)
+        try:
+            # Obtener jugador remitente
+            remitente = await get_player(remitente_id, interaction.user.name)
+            if not remitente:
+                await interaction.response.send_message("❌ No se pudo encontrar tu información.", ephemeral=True)
+                return
+            
+            # Verificar si el remitente tiene suficiente dinero
+            if remitente["balance"] < cantidad:
+                await interaction.response.send_message("💸 No tienes suficiente dinero para esta transferencia.", ephemeral=True)
+                return
+            
+            # Asegurar que el destinatario existe
+            await get_player(destinatario_id, destinatario.name)
+            
+            # Realizar transferencia
+            await update_balance(remitente_id, -cantidad)
+            await update_balance(destinatario_id, cantidad)
+            
+            embed = discord.Embed(
+                title="✅ Transferencia Exitosa",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="De", value=interaction.user.mention, inline=True)
+            embed.add_field(name="Para", value=destinatario.mention, inline=True)
+            embed.add_field(name="Cantidad", value=f"**{cantidad:,}** monedas", inline=True)
+            
+            await interaction.response.send_message(embed=embed)
+            
+            # Actualizar leaderboard
+            await update_global_leaderboard(cog.bot)
+            
+        except Exception as e:
+            print(f"Error en transferir: {e}")
+            await interaction.response.send_message("❌ Ha ocurrido un error al procesar la transferencia.", ephemeral=True)

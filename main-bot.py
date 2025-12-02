@@ -1,437 +1,405 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import random
-import asyncio
-import sqlite3
 import os
-import time
+import asyncio
 from dotenv import load_dotenv
-from aiohttp import web
-import urllib.parse
+import subprocess
+import shutil
+from datetime import datetime
+from supabase import create_client, Client
+import postgrest
+import time
 
 # ------------------------- CONFIGURACIÓN DEL BOT ---------------------------
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-DB_FILE = "players.db"
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 INITIAL_BALANCE = 500
 
-# IDs de canales
-CHANNEL_BET_ID = 1430216318933794927
-CHANNEL_TROPHY_ID = 1430215324111736953
-CHANNEL_LEADERBOARD_ID = 1430215076769435800
+# Configuración de GitHub
+GITHUB_REPO_URL = os.getenv("GITHUB_REPO_URL")  # URL del repositorio GitHub
+GITHUB_BACKUP_DIR = "./github_backup"  # Directorio temporal para git
+BACKUP_INTERVAL = 300  # 5 minutos en segundos
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+# Inicializar cliente de Supabase
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+bot.supabase = supabase  # Hacerlo disponible para otros cogs
 # ---------------------------------------------------------------------------
 
-# ----------------------- SERVIDOR WEB CON EXPLORADOR DE ARCHIVOS -----------
-def get_file_tree(startpath=".", max_depth=3):
-    """Genera el árbol de archivos y directorios"""
-    tree = []
-    for root, dirs, files in os.walk(startpath):
-        level = root.replace(startpath, '').count(os.sep)
-        if level > max_depth:
-            continue
-            
-        # Excluir algunas carpetas del bot por seguridad
-        exclude_dirs = ['__pycache__', '.git', 'node_modules']
-        dirs[:] = [d for d in dirs if d not in exclude_dirs]
-        
-        indent = '  ' * level
-        tree.append(f'{indent}📁 {os.path.basename(root)}/')
-        subindent = '  ' * (level + 1)
-        
-        for file in files:
-            # Excluir algunos archivos por seguridad
-            if file.endswith(('.pyc', '.env', '.db')):
-                continue
-            file_path = os.path.join(root, file)
-            file_size = os.path.getsize(file_path)
-            tree.append(f'{subindent}📄 {file} ({file_size} bytes)')
-    
-    return '\n'.join(tree)
-
-def generate_file_list_html(base_path="."):
-    """Genera HTML con la lista de archivos navegable"""
-    # Normalizar y asegurar que no salgamos del directorio seguro
-    safe_base = os.path.abspath(base_path)
-    
-    html = []
-    html.append('''
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Explorador de Archivos</title>
-        <style>
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                max-width: 1200px;
-                margin: 0 auto;
-                padding: 20px;
-                background-color: #1e1e1e;
-                color: #ffffff;
-            }
-            .header {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                padding: 20px;
-                border-radius: 10px;
-                margin-bottom: 20px;
-                text-align: center;
-            }
-            .file-explorer {
-                background: #2d2d2d;
-                border-radius: 10px;
-                padding: 20px;
-                margin-bottom: 20px;
-            }
-            .breadcrumb {
-                background: #3d3d3d;
-                padding: 10px;
-                border-radius: 5px;
-                margin-bottom: 15px;
-                font-size: 14px;
-            }
-            .file-list {
-                list-style: none;
-                padding: 0;
-            }
-            .file-item {
-                padding: 10px;
-                margin: 5px 0;
-                background: #3d3d3d;
-                border-radius: 5px;
-                display: flex;
-                align-items: center;
-                transition: background 0.3s;
-            }
-            .file-item:hover {
-                background: #4d4d4d;
-            }
-            .file-icon {
-                margin-right: 10px;
-                font-size: 18px;
-            }
-            .file-name {
-                flex-grow: 1;
-            }
-            .file-size {
-                color: #888;
-                font-size: 12px;
-                margin-left: 10px;
-            }
-            .download-btn {
-                background: #4CAF50;
-                color: white;
-                border: none;
-                padding: 5px 10px;
-                border-radius: 3px;
-                cursor: pointer;
-                text-decoration: none;
-                font-size: 12px;
-            }
-            .download-btn:hover {
-                background: #45a049;
-            }
-            .folder-link {
-                color: #64b5f6;
-                text-decoration: none;
-            }
-            .folder-link:hover {
-                text-decoration: underline;
-            }
-            .current-path {
-                word-break: break-all;
-                background: #2d2d2d;
-                padding: 10px;
-                border-radius: 5px;
-                font-family: monospace;
-                margin-bottom: 10px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>🖥️ Explorador de Archivos del Bot</h1>
-            <p>Navega por los archivos y directorios disponibles</p>
-        </div>
-    ''')
-    
-    # Breadcrumb navigation
-    html.append('<div class="breadcrumb">')
-    html.append('<a href="/" class="folder-link">🏠 Inicio</a>')
-    html.append('</div>')
-    
-    # Current path
-    html.append(f'<div class="current-path">📍 Ruta actual: {safe_base}</div>')
-    
-    # File list
-    html.append('<div class="file-explorer">')
-    html.append('<h3>📂 Contenido:</h3>')
-    html.append('<ul class="file-list">')
+# -------------------- CREACIÓN DE TABLAS EN SUPABASE -----------------------
+def setup_supabase_tables():
+    """Crea todas las tablas necesarias en Supabase si no existen"""
+    print("🔧 Configurando tablas en Supabase...")
     
     try:
-        # List directories first
-        items = []
-        for item in os.listdir(safe_base):
-            item_path = os.path.join(safe_base, item)
-            
-            # Excluir carpetas y archivos sensibles
-            if item.startswith(('.', '__')) or item in ['__pycache__', '.git', 'node_modules']:
-                continue
-                
-            items.append((item, item_path, os.path.isdir(item_path)))
-        
-        # Sort: directories first, then files
-        items.sort(key=lambda x: (not x[2], x[0].lower()))
-        
-        for item, item_path, is_dir in items:
-            if is_dir:
-                # Es un directorio
-                html.append(f'''
-                <li class="file-item">
-                    <span class="file-icon">📁</span>
-                    <span class="file-name">
-                        <a href="/browse?path={urllib.parse.quote(item_path)}" class="folder-link">{item}/</a>
-                    </span>
-                    <span class="file-size">[DIRECTORIO]</span>
-                </li>
-                ''')
-            else:
-                # Es un archivo
-                file_size = os.path.getsize(item_path)
-                size_str = f"{file_size} bytes"
-                if file_size > 1024:
-                    size_str = f"{file_size/1024:.1f} KB"
-                if file_size > 1024*1024:
-                    size_str = f"{file_size/(1024*1024):.1f} MB"
-                
-                html.append(f'''
-                <li class="file-item">
-                    <span class="file-icon">📄</span>
-                    <span class="file-name">{item}</span>
-                    <span class="file-size">{size_str}</span>
-                    <a href="/download?file={urllib.parse.quote(item_path)}" class="download-btn">📥 Descargar</a>
-                </li>
-                ''')
-                
-    except PermissionError:
-        html.append('<li class="file-item">❌ Permiso denegado para acceder a este directorio</li>')
+        # Verificar conexión primero
+        supabase.table("players").select("count", count="exact").limit(1).execute()
+        print("✅ Conexión a Supabase establecida")
     except Exception as e:
-        html.append(f'<li class="file-item">❌ Error: {str(e)}</li>')
-    
-    html.append('</ul>')
-    html.append('</div>')
-    
-    # Tree view
-    html.append('<div class="file-explorer">')
-    html.append('<h3>🌳 Vista de árbol (primeros 3 niveles):</h3>')
-    html.append('<pre style="background: #1e1e1e; padding: 15px; border-radius: 5px; overflow-x: auto;">')
-    html.append(get_file_tree(safe_base))
-    html.append('</pre>')
-    html.append('</div>')
-    
-    html.append('</body></html>')
-    
-    return ''.join(html)
-
-async def handle_file_explorer(request):
-    """Manejador principal del explorador de archivos"""
-    return web.Response(
-        text=generate_file_list_html(),
-        content_type='text/html'
-    )
-
-async def handle_browse(request):
-    """Manejador para navegar por directorios"""
-    path = request.query.get('path', '')
-    if not path:
-        return web.HTTPFound('/')
+        print(f"❌ Error conectando a Supabase: {e}")
+        print("⚠️  Asegúrate de que:")
+        print(f"  1. SUPABASE_URL está configurado: {SUPABASE_URL}")
+        print(f"  2. SUPABASE_KEY está configurado: {SUPABASE_KEY[:10]}...")
+        print("  3. El proyecto Supabase está activo")
+        return False
     
     try:
-        # Verificar que el path es seguro
-        safe_path = os.path.abspath(path)
-        if not os.path.exists(safe_path) or not os.path.isdir(safe_path):
-            return web.Response(text="Directorio no encontrado", status=404)
-            
-        return web.Response(
-            text=generate_file_list_html(safe_path),
-            content_type='text/html'
-        )
+        # Crear tabla players si no existe
+        try:
+            supabase.table("players").select("*").limit(1).execute()
+            print("✅ Tabla 'players' ya existe")
+        except Exception:
+            print("📦 Creando tabla 'players'...")
+            # Ejecutar SQL para crear tabla players
+            sql_players = """
+            CREATE TABLE IF NOT EXISTS players (
+                discord_id TEXT PRIMARY KEY,
+                username TEXT,
+                balance INTEGER DEFAULT 500,
+                daily_streak INTEGER DEFAULT 0,
+                last_daily TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            """
+            supabase.rpc('exec_sql', {'sql': sql_players}).execute()
+            print("✅ Tabla 'players' creada")
+        
+        # Crear tabla crypto_wallets si no existe
+        try:
+            supabase.table("crypto_wallets").select("*").limit(1).execute()
+            print("✅ Tabla 'crypto_wallets' ya existe")
+        except Exception:
+            print("📦 Creando tabla 'crypto_wallets'...")
+            sql_crypto_wallets = """
+            CREATE TABLE IF NOT EXISTS crypto_wallets (
+                discord_id TEXT PRIMARY KEY,
+                btc_balance REAL DEFAULT 0,
+                eth_balance REAL DEFAULT 0,
+                dog_balance REAL DEFAULT 0,
+                last_btc_trade TIMESTAMP WITH TIME ZONE,
+                last_eth_trade TIMESTAMP WITH TIME ZONE,
+                last_dog_trade TIMESTAMP WITH TIME ZONE,
+                total_invested REAL DEFAULT 0,
+                total_withdrawn REAL DEFAULT 0
+            );
+            """
+            supabase.rpc('exec_sql', {'sql': sql_crypto_wallets}).execute()
+            print("✅ Tabla 'crypto_wallets' creada")
+        
+        # Crear tabla crypto_prices si no existe
+        try:
+            supabase.table("crypto_prices").select("*").limit(1).execute()
+            print("✅ Tabla 'crypto_prices' ya existe")
+        except Exception:
+            print("📦 Creando tabla 'crypto_prices'...")
+            sql_crypto_prices = """
+            CREATE TABLE IF NOT EXISTS crypto_prices (
+                id BIGSERIAL PRIMARY KEY,
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                btc_price REAL,
+                eth_price REAL,
+                dog_price REAL
+            );
+            """
+            supabase.rpc('exec_sql', {'sql': sql_crypto_prices}).execute()
+            print("✅ Tabla 'crypto_prices' creada")
+        
+        # Crear tabla crypto_current_prices si no existe
+        try:
+            supabase.table("crypto_current_prices").select("*").limit(1).execute()
+            print("✅ Tabla 'crypto_current_prices' ya existe")
+        except Exception:
+            print("📦 Creando tabla 'crypto_current_prices'...")
+            sql_current_prices = """
+            CREATE TABLE IF NOT EXISTS crypto_current_prices (
+                crypto TEXT PRIMARY KEY,
+                price REAL,
+                last_update TIMESTAMP WITH TIME ZONE
+            );
+            """
+            supabase.rpc('exec_sql', {'sql': sql_current_prices}).execute()
+            print("✅ Tabla 'crypto_current_prices' creada")
+        
+        # Insertar datos iniciales
+        insert_initial_data()
+        
+        # Configurar políticas de seguridad (Row Level Security)
+        setup_rls_policies()
+        
+        print("🎉 Base de datos en Supabase configurada correctamente")
+        return True
+        
     except Exception as e:
-        return web.Response(text=f"Error: {str(e)}", status=500)
+        print(f"❌ Error creando tablas en Supabase: {e}")
+        print("⚠️  Posibles soluciones:")
+        print("  1. Verifica que tengas permisos para crear tablas")
+        print("  2. Crea las tablas manualmente en el dashboard de Supabase")
+        print("  3. Verifica la conexión a internet")
+        return False
 
-async def handle_download(request):
-    """Manejador para descargar archivos"""
-    file_path = request.query.get('file', '')
-    if not file_path:
-        return web.Response(text="Archivo no especificado", status=400)
+def insert_initial_data():
+    """Inserta datos iniciales en las tablas"""
+    try:
+        # Verificar e insertar precios iniciales
+        response = supabase.table("crypto_current_prices").select("*").execute()
+        if len(response.data) == 0:
+            initial_prices = [
+                {"crypto": "BTC", "price": 10000, "last_update": datetime.now().isoformat()},
+                {"crypto": "ETH", "price": 3000, "last_update": datetime.now().isoformat()},
+                {"crypto": "DOG", "price": 50, "last_update": datetime.now().isoformat()}
+            ]
+            for price_data in initial_prices:
+                try:
+                    supabase.table("crypto_current_prices").insert(price_data).execute()
+                except:
+                    # Si ya existe, actualizar
+                    supabase.table("crypto_current_prices").update(price_data).eq("crypto", price_data["crypto"]).execute()
+            print("✅ Precios iniciales insertados/actualizados")
+        
+        # Insertar primer registro histórico
+        response = supabase.table("crypto_prices").select("*").execute()
+        if len(response.data) == 0:
+            supabase.table("crypto_prices").insert({
+                "btc_price": 10000,
+                "eth_price": 3000,
+                "dog_price": 50
+            }).execute()
+            print("✅ Registro histórico inicial insertado")
+            
+    except Exception as e:
+        print(f"⚠️  Error insertando datos iniciales: {e}")
+
+def setup_rls_policies():
+    """Configura las políticas de seguridad (Row Level Security)"""
+    try:
+        # Verificar si RLS está activado y configurar políticas simples
+        print("🔐 Configurando políticas de seguridad...")
+        
+        # Para desarrollo, podemos desactivar RLS temporalmente
+        # o crear políticas que permitan todo
+        try:
+            # Crear política que permite todas las operaciones para development
+            sql_rls = """
+            -- Habilitar RLS en todas las tablas
+            ALTER TABLE players ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE crypto_wallets ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE crypto_prices ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE crypto_current_prices ENABLE ROW LEVEL SECURITY;
+            
+            -- Crear políticas que permiten todo (solo para desarrollo)
+            DROP POLICY IF EXISTS "allow_all_players" ON players;
+            CREATE POLICY "allow_all_players" ON players
+                FOR ALL USING (true);
+                
+            DROP POLICY IF EXISTS "allow_all_crypto_wallets" ON crypto_wallets;
+            CREATE POLICY "allow_all_crypto_wallets" ON crypto_wallets
+                FOR ALL USING (true);
+                
+            DROP POLICY IF EXISTS "allow_all_crypto_prices" ON crypto_prices;
+            CREATE POLICY "allow_all_crypto_prices" ON crypto_prices
+                FOR ALL USING (true);
+                
+            DROP POLICY IF EXISTS "allow_all_crypto_current_prices" ON crypto_current_prices;
+            CREATE POLICY "allow_all_crypto_current_prices" ON crypto_current_prices
+                FOR ALL USING (true);
+            """
+            supabase.rpc('exec_sql', {'sql': sql_rls}).execute()
+            print("✅ Políticas RLS configuradas")
+            
+        except Exception as e:
+            print(f"⚠️  Error configurando RLS: {e}")
+            print("ℹ️  Puedes configurar RLS manualmente en el dashboard de Supabase")
+            
+    except Exception as e:
+        print(f"⚠️  Error en configuración de RLS: {e}")
+
+# Función alternativa si exec_sql no está disponible
+def create_tables_alternative():
+    """Método alternativo para crear tablas usando la API REST"""
+    print("🔄 Usando método alternativo para crear tablas...")
+    
+    # Esta función intentará crear tablas mediante inserciones/consultas
+    # Si fallan, asumimos que las tablas no existen y debemos crearlas manualmente
     
     try:
-        # Verificar que el path es seguro y el archivo existe
-        safe_path = os.path.abspath(file_path)
-        if not os.path.exists(safe_path) or not os.path.isfile(safe_path):
-            return web.Response(text="Archivo no encontrado", status=404)
+        # Verificar si podemos acceder a las tablas
+        try:
+            supabase.table("players").select("count", count="exact").limit(0).execute()
+            print("✅ Tabla 'players' accesible")
+        except Exception as e:
+            print("❌ Tabla 'players' no existe o no es accesible")
+            print("   Crea la tabla manualmente con este SQL:")
+            print("""
+            CREATE TABLE players (
+                discord_id TEXT PRIMARY KEY,
+                username TEXT,
+                balance INTEGER DEFAULT 500,
+                daily_streak INTEGER DEFAULT 0,
+                last_daily TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            """)
+            return False
+            
+        # Verificar el resto de tablas de manera similar
+        tables = ["crypto_wallets", "crypto_prices", "crypto_current_prices"]
+        for table in tables:
+            try:
+                supabase.table(table).select("count", count="exact").limit(0).execute()
+                print(f"✅ Tabla '{table}' accesible")
+            except Exception:
+                print(f"❌ Tabla '{table}' no existe o no es accesible")
+                print(f"   Crea la tabla '{table}' manualmente en el dashboard de Supabase")
         
-        # Verificar que no es un archivo sensible
-        sensitive_extensions = ['.env']
-        if any(safe_path.endswith(ext) for ext in sensitive_extensions):
-            return web.Response(text="No se puede descargar este tipo de archivo", status=403)
+        return True
         
-        return web.FileResponse(safe_path)
     except Exception as e:
-        return web.Response(text=f"Error: {str(e)}", status=500)
+        print(f"❌ Error verificando tablas: {e}")
+        return False
 
-async def start_web_server():
-    """Inicia el servidor web con el explorador de archivos"""
-    app = web.Application()
-    
-    # Rutas
-    app.router.add_get('/', handle_file_explorer)
-    app.router.add_get('/browse', handle_browse)
-    app.router.add_get('/download', handle_download)
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    
-    site = web.TCPSite(runner, '0.0.0.0', 8080)
-    await site.start()
-    
-    print("🌐 Servidor web iniciado en puerto 8080")
-    print("📁 Explorador de archivos disponible en: http://0.0.0.0:8080")
-    return runner
-# ---------------------------------------------------------------------------
-
-# -------------------- CARGA BASE DATOS (DEFINICIONES) ----------------------
-def setup_database():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    
-    # Tabla de jugadores (mejorada con sistema de recompensas diarias)
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS players (
-        discord_id TEXT PRIMARY KEY,
-        username TEXT,
-        balance INTEGER DEFAULT 500,
-        daily_streak INTEGER DEFAULT 0,
-        last_daily TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-
-    conn.commit()
-    conn.close()
-    print("✅ Base de datos mejorada creada correctamente.")
-setup_database()
+# Llamar a setup_database al inicio
+if not setup_supabase_tables():
+    print("🔄 Intentando método alternativo...")
+    create_tables_alternative()
 # ---------------------------------------------------------------------------
 
 # --------------------- FUNCIONES DE BASE DE DATOS --------------------------
 def get_player(discord_id, username):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT * FROM players WHERE discord_id = ?", (discord_id,))
-    player = c.fetchone()
-    if not player:
-        c.execute("INSERT INTO players (discord_id, username, balance) VALUES (?, ?, ?)",
-                  (discord_id, username, INITIAL_BALANCE))
-        conn.commit()
-        c.execute("SELECT * FROM players WHERE discord_id = ?", (discord_id,))
-        player = c.fetchone()
-    conn.close()
-    return player
+    """Obtiene o crea un jugador en Supabase"""
+    try:
+        # Intentar obtener el jugador
+        response = supabase.table("players")\
+            .select("*")\
+            .eq("discord_id", str(discord_id))\
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        else:
+            # Crear nuevo jugador
+            new_player = {
+                "discord_id": str(discord_id),
+                "username": username,
+                "balance": INITIAL_BALANCE,
+                "daily_streak": 0,
+                "created_at": datetime.now().isoformat()
+            }
+            response = supabase.table("players").insert(new_player).execute()
+            
+            # También crear wallet de criptomonedas si no existe
+            try:
+                supabase.table("crypto_wallets")\
+                    .select("*")\
+                    .eq("discord_id", str(discord_id))\
+                    .execute()
+            except:
+                new_wallet = {
+                    "discord_id": str(discord_id),
+                    "btc_balance": 0,
+                    "eth_balance": 0,
+                    "dog_balance": 0,
+                    "total_invested": 0,
+                    "total_withdrawn": 0
+                }
+                supabase.table("crypto_wallets").insert(new_wallet).execute()
+            
+            return response.data[0] if response.data else None
+            
+    except Exception as e:
+        print(f"❌ Error en get_player: {e}")
+        return None
 
 def update_balance(discord_id, amount):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("UPDATE players SET balance = balance + ? WHERE discord_id = ?", (amount, discord_id))
-    conn.commit()
-    conn.close()
+    """Actualiza el balance de un jugador en Supabase"""
+    try:
+        # Primero obtener el balance actual
+        response = supabase.table("players")\
+            .select("balance")\
+            .eq("discord_id", str(discord_id))\
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            current_balance = response.data[0]["balance"]
+            new_balance = current_balance + amount
+            
+            # Actualizar balance
+            supabase.table("players")\
+                .update({"balance": new_balance})\
+                .eq("discord_id", str(discord_id))\
+                .execute()
+            
+            return new_balance
+        else:
+            # Si no existe el jugador, crearlo primero
+            from discord.utils import get
+            guild = bot.guilds[0] if bot.guilds else None
+            member = guild.get_member(int(discord_id)) if guild else None
+            username = member.name if member else "Unknown"
+            
+            get_player(discord_id, username)
+            return amount + INITIAL_BALANCE  # Balance inicial + lo ganado
+            
+    except Exception as e:
+        print(f"❌ Error en update_balance: {e}")
+        return None
 
 def get_leaderboard():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT username, balance FROM players ORDER BY balance DESC")
-    data = c.fetchall()
-    conn.close()
-    return data
-# ---------------------------------------------------------------------------
-
-# --------------------- FUNCIONES GLOBALES --------------------------------
-async def update_global_leaderboard():
-    """Función global para actualizar el leaderboard"""
-    channel = bot.get_channel(CHANNEL_LEADERBOARD_ID)
-    if not channel:
-        print("❌ Canal de leaderboard no encontrado")
-        return
-    
+    """Obtiene el leaderboard desde Supabase"""
     try:
-        leaderboard = get_leaderboard()
-        await channel.purge()
+        response = supabase.table("players")\
+            .select("username, balance, discord_id")\
+            .order("balance", desc=True)\
+            .limit(10)\
+            .execute()
         
-        embed = discord.Embed(title="🏆 TABLA DE LÍDERES GLOBAL", color=discord.Color.gold())
-        
-        for i, (name, balance) in enumerate(leaderboard[:10], start=1):
-            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
-            embed.add_field(
-                name=f"{medal} {name}", 
-                value=f"```{balance:,} monedas```", 
-                inline=False
-            )
-        
-        embed.set_footer(text="Actualizado automáticamente")
-        await channel.send(embed=embed)
-        print("✅ Leaderboard global actualizado")
-        
+        return response.data
     except Exception as e:
-        print(f"❌ Error actualizando leaderboard: {e}")
+        print(f"❌ Error en get_leaderboard: {e}")
+        return []
 
-async def update_global_trophy_wall(winner=None, game_type="Blackjack"):
-    """Función global para actualizar el muro de trofeos"""
-    channel = bot.get_channel(CHANNEL_TROPHY_ID)
-    if not channel:
-        return
-    
+def get_crypto_wallet(discord_id):
+    """Obtiene la wallet de criptomonedas de un usuario"""
     try:
-        await channel.purge()
+        response = supabase.table("crypto_wallets")\
+            .select("*")\
+            .eq("discord_id", str(discord_id))\
+            .execute()
         
-        embed = discord.Embed(
-            title="🎊 MURO DE LA FAMA",
-            description=f"Últimos ganadores de {game_type}",
-            color=discord.Color.green()
-        )
-        
-        if winner:
-            if isinstance(winner, list):
-                for i, w in enumerate(winner[:5]):
-                    embed.add_field(
-                        name=f"🏅 {w.display_name}",
-                        value=f"Ganó en la última partida de {game_type}",
-                        inline=False
-                    )
-            else:
-                embed.add_field(
-                    name=f"🏅 {winner.display_name}",
-                    value=f"Ganó en la última partida de {game_type}",
-                    inline=False
-                )
+        if response.data and len(response.data) > 0:
+            return response.data[0]
         else:
-            embed.description = f"💀 Nadie ha ganado en la última partida de {game_type}"
-        
-        embed.set_footer(text="Actualizado después de cada partida")
-        await channel.send(embed=embed)
-        
+            # Crear wallet si no existe
+            new_wallet = {
+                "discord_id": str(discord_id),
+                "btc_balance": 0,
+                "eth_balance": 0,
+                "dog_balance": 0,
+                "total_invested": 0,
+                "total_withdrawn": 0
+            }
+            supabase.table("crypto_wallets").insert(new_wallet).execute()
+            return new_wallet
     except Exception as e:
-        print(f"❌ Error actualizando muro de trofeos: {e}")
+        print(f"❌ Error en get_crypto_wallet: {e}")
+        return None
+
+# Hacer funciones disponibles globalmente
+bot.get_player = get_player
+bot.update_balance = update_balance
+bot.get_leaderboard = get_leaderboard
+bot.get_crypto_wallet = get_crypto_wallet
 # ---------------------------------------------------------------------------
 
-# --------------------- CARGA DE COGS (DEFINICIONES) ------------------------
+# --------------------- CARGA DE COGS ------------------------
 async def load_juegos():
-    """Carga todos los cogs de la carpeta cog/juegos"""
     for filename in os.listdir("./cog/juegos"):
         if filename.endswith(".py") and not filename.startswith("_"):
             try:
@@ -441,7 +409,6 @@ async def load_juegos():
                 print(f"❌ Error al cargar {filename}: {e}")
 
 async def load_ia():
-    """Carga todos los cogs de la carpeta cog/ia"""
     for filename in os.listdir("./cog/ia"):
         if filename.endswith(".py"):
             try:
@@ -451,7 +418,6 @@ async def load_ia():
                 print(f"❌ Error al cargar {filename}: {e}")
 
 async def load_economia():
-    """Carga todos los cogs de la carpeta cog/economia"""
     for filename in os.listdir("./cog/economia"):
         if filename.endswith(".py"):
             try:
@@ -461,7 +427,6 @@ async def load_economia():
                 print(f"❌ Error al cargar {filename}: {e}")
     
 async def load_commands():
-    """Carga todos los cogs de la carpeta cog/commands"""
     for filename in os.listdir("./cog/commands"):
         if filename.endswith(".py"):
             try:
@@ -469,7 +434,6 @@ async def load_commands():
                 print(f"✅ Cog cargado: {filename}")
             except Exception as e:
                 print(f"❌ Error al cargar {filename}: {e}")
-                
 
 async def load_all():
     await load_juegos()
@@ -481,19 +445,104 @@ async def load_all():
 # ------------------------------ CARGAR BOT ---------------------------------
 @bot.event
 async def on_ready():
-    # Iniciar servidor web
-    await start_web_server()
+    print(f"🤖 Bot conectado como {bot.user}")
     
     # Cargar extensiones
     await load_all() 
-    print(f"🤖 Bot conectado como {bot.user}")
+    
+    # Sincronizar comandos
     try:
         synced = await bot.tree.sync()
-        print(f"📜 {len(synced)} comandos sincronizados:")
-        for cmd in synced:
-            print(f"   - /{cmd.name}")
+        print(f"📜 {len(synced)} comandos sincronizados")
     except Exception as e:
         print(f"❌ Error sincronizando comandos: {e}")
+    
+    # Iniciar tareas en segundo plano
+    await start_background_tasks()
+
+async def start_background_tasks():
+    """Inicia tareas en segundo plano"""
+    # Ejemplo: Actualizar precios cada hora
+    bot.loop.create_task(update_crypto_prices_loop())
+    print("✅ Tareas en segundo plano iniciadas")
+
+async def update_crypto_prices_loop():
+    """Bucle para actualizar precios de criptomonedas periódicamente"""
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        try:
+            # Aquí puedes agregar lógica para actualizar precios
+            # Por ahora, solo un placeholder
+            await asyncio.sleep(3600)  # Esperar 1 hora
+        except Exception as e:
+            print(f"❌ Error en update_crypto_prices_loop: {e}")
+            await asyncio.sleep(300)  # Esperar 5 minutos si hay error
+# ---------------------------------------------------------------------------
+
+# ---------------------- MIGRACIÓN DE DATOS EXISTENTES ----------------------
+def migrate_from_sqlite():
+    """Migra datos de SQLite a Supabase si existe la base de datos local"""
+    sqlite_db = "players.db"
+    if os.path.exists(sqlite_db):
+        print("🔄 Detectada base de datos SQLite, iniciando migración...")
+        try:
+            import sqlite3
+            conn = sqlite3.connect(sqlite_db)
+            cursor = conn.cursor()
+            
+            # Migrar jugadores
+            cursor.execute("SELECT * FROM players")
+            players = cursor.fetchall()
+            
+            for player in players:
+                player_data = {
+                    "discord_id": player[0],
+                    "username": player[1],
+                    "balance": player[2],
+                    "daily_streak": player[3] if len(player) > 3 else 0,
+                    "last_daily": player[4] if len(player) > 4 else None,
+                    "created_at": player[5] if len(player) > 5 else datetime.now().isoformat()
+                }
+                try:
+                    # Intentar insertar, si existe actualizar
+                    supabase.table("players").upsert(player_data).execute()
+                except Exception as e:
+                    print(f"⚠️  Error migrando jugador {player[0]}: {e}")
+            
+            # Migrar wallets de criptomonedas
+            try:
+                cursor.execute("SELECT * FROM crypto_wallets")
+                wallets = cursor.fetchall()
+                
+                for wallet in wallets:
+                    wallet_data = {
+                        "discord_id": wallet[0],
+                        "btc_balance": wallet[1] if len(wallet) > 1 else 0,
+                        "eth_balance": wallet[2] if len(wallet) > 2 else 0,
+                        "dog_balance": wallet[3] if len(wallet) > 3 else 0,
+                        "last_btc_trade": wallet[4] if len(wallet) > 4 else None,
+                        "last_eth_trade": wallet[5] if len(wallet) > 5 else None,
+                        "last_dog_trade": wallet[6] if len(wallet) > 6 else None,
+                        "total_invested": wallet[7] if len(wallet) > 7 else 0,
+                        "total_withdrawn": wallet[8] if len(wallet) > 8 else 0
+                    }
+                    try:
+                        supabase.table("crypto_wallets").upsert(wallet_data).execute()
+                    except Exception as e:
+                        print(f"⚠️  Error migrando wallet {wallet[0]}: {e}")
+            except sqlite3.OperationalError:
+                print("ℹ️  Tabla crypto_wallets no existe en SQLite, omitiendo...")
+            
+            conn.close()
+            print("✅ Migración completada")
+            
+        except Exception as e:
+            print(f"❌ Error en migración: {e}")
+    else:
+        print("ℹ️  No se encontró base de datos SQLite para migrar")
+
+# Ejecutar migración al inicio (opcional, comentar si no se necesita)
+migrate_from_sqlite()
 # ---------------------------------------------------------------------------
 
 bot.run(TOKEN)

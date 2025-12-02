@@ -1,4 +1,4 @@
-Bot Discord Clase v4-final:
+Bot Discord Clase v5:
   - ping
   - economia
     · saldo
@@ -12,10 +12,12 @@ Bot Discord Clase v4-final:
     · auto-sincronizado
     · enlaces en el .env
 
-POR HACER (cuando se termine, será v4-final):
+BASE DE DATOS ONLINE CON SUPABASE!!!
+
+POR HACER (cuando se termine, será v5-final):
+  - criptomonedas
   - inventarios
   - objetos con imagenes locales
   - base de datos que permita esto
   - tienda local
   - juego de rol por opciones aleatorio con imagenes
-  

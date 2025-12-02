@@ -1,150 +1,106 @@
 import discord
 from discord import app_commands
-import sqlite3
 import time
 import random
 from typing import Optional
+import sys
+import os
+
+# Agregar el directorio padre al path para importar desde economy.py
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Importar desde el módulo principal
+from economy import get_player, update_balance, update_player
 
 # Configuración del sistema de robos
-ROB_SUCCESS_RATE = 0.40  # Aumentado a 40% de probabilidad de éxito
-ROB_COOLDOWN = 1800  # 30 minutos en segundos
+ROB_SUCCESS_RATE = 0.40
+ROB_COOLDOWN = 1800
+ROB_PENALTY_PERCENT = 0.25
 
-# Porcentajes de robo según número de cifras
 ROB_PERCENTAGES = {
-    1: 0.70,  # 1 cifra: 70%
-    2: 0.60,  # 2 cifras: 60%
-    3: 0.50,  # 3 cifras: 50%
-    4: 0.40,  # 4 cifras: 40%
-    5: 0.30,  # 5 cifras: 30%
-    6: 0.20,  # 6 cifras: 20%
-    7: 0.10   # 7+ cifras: 10%
+    1: 0.70,
+    2: 0.60,
+    3: 0.50,
+    4: 0.40,
+    5: 0.30,
+    6: 0.20,
+    7: 0.10
 }
 
-# Porcentaje de penalización cuando falla el robo (reducido para hacerlo rentable)
-ROB_PENALTY_PERCENT = 0.25  # 25% del monto intentado de robo
-
-def get_player_local(discord_id, username):
-    conn = sqlite3.connect("players.db")
-    c = conn.cursor()
-    c.execute("SELECT * FROM players WHERE discord_id = ?", (discord_id,))
-    player = c.fetchone()
-    if not player:
-        c.execute("INSERT INTO players (discord_id, username, balance) VALUES (?, ?, ?)",
-                  (discord_id, username, 500))
-        conn.commit()
-        c.execute("SELECT * FROM players WHERE discord_id = ?", (discord_id,))
-        player = c.fetchone()
-    conn.close()
-    return player
-
-def update_balance_local(discord_id, amount):
-    conn = sqlite3.connect("players.db")
-    c = conn.cursor()
-    c.execute("UPDATE players SET balance = balance + ? WHERE discord_id = ?", (amount, discord_id))
-    conn.commit()
-    conn.close()
-
-def get_rob_cooldown(discord_id):
-    conn = sqlite3.connect("players.db")
-    c = conn.cursor()
-    
-    # Verificar si existe la columna last_rob
-    c.execute("PRAGMA table_info(players)")
-    columns = [column[1] for column in c.fetchall()]
-    
-    if 'last_rob' not in columns:
-        # Agregar la columna si no existe
-        c.execute("ALTER TABLE players ADD COLUMN last_rob INTEGER DEFAULT 0")
-        conn.commit()
-    
-    c.execute("SELECT last_rob FROM players WHERE discord_id = ?", (discord_id,))
-    result = c.fetchone()
-    last_rob = result[0] if result else 0
-    conn.close()
-    
-    return last_rob
-
-def update_rob_cooldown(discord_id):
-    conn = sqlite3.connect("players.db")
-    c = conn.cursor()
-    current_time = int(time.time())
-    c.execute("UPDATE players SET last_rob = ? WHERE discord_id = ?", (current_time, discord_id))
-    conn.commit()
-    conn.close()
-
 def get_digit_count(amount):
-    """Calcula el número de cifras de una cantidad"""
     return len(str(abs(amount)))
 
 def get_rob_percentage(amount):
-    """Obtiene el porcentaje de robo según el número de cifras"""
     digits = get_digit_count(amount)
-    
-    # Para 7 o más cifras, usar 10%
     if digits >= 7:
         return ROB_PERCENTAGES[7]
-    
     return ROB_PERCENTAGES.get(digits, 0.10)
 
-def attempt_robbery(robber_id, victim_id, robber_username, victim_username):
-    """Intenta realizar un robo y retorna los resultados"""
-    conn = sqlite3.connect("players.db")
-    c = conn.cursor()
-    
-    # Obtener balances actuales
-    robber_data = get_player_local(robber_id, robber_username)
-    victim_data = get_player_local(victim_id, victim_username)
-    
-    robber_balance = robber_data[2]
-    victim_balance = victim_data[2]
-    
-    # Verificar que el ladrón tenga al menos 0 monedas
-    if robber_balance < 0:
-        conn.close()
-        return "insufficient_funds", 0, 0, 0, 0
-    
-    # Verificar que la víctima tenga al menos 1 moneda
-    if victim_balance < 1:
-        conn.close()
-        return "victim_poor", 0, 0, 0, 0
-    
-    # Determinar porcentaje de robo según cifras de la víctima
-    rob_percentage = get_rob_percentage(victim_balance)
-    attempted_rob_amount = int(victim_balance * rob_percentage)
-    
-    # Asegurar que se robe al menos 1 moneda
-    attempted_rob_amount = max(1, attempted_rob_amount)
-    
-    # Verificar que no se robe más de lo que tiene la víctima
-    actual_rob_amount = min(attempted_rob_amount, victim_balance)
-    
-    # Probabilidad de éxito
-    success = random.random() <= ROB_SUCCESS_RATE
-    
-    if success:
-        # Robo exitoso: transferir de víctima a ladrón
-        update_balance_local(victim_id, -actual_rob_amount)
-        update_balance_local(robber_id, actual_rob_amount)
-        conn.close()
-        return "success", actual_rob_amount, rob_percentage, 0, attempted_rob_amount
-    else:
-        # Robo fallido: penalización del ladrón a la víctima
-        # La penalización es un porcentaje del monto que intentó robar
-        penalty_amount = int(attempted_rob_amount * ROB_PENALTY_PERCENT)
+async def get_rob_cooldown(discord_id):
+    """Obtiene el tiempo del último robo desde Supabase"""
+    try:
+        player = await get_player(discord_id, "")
+        return player.get("last_rob", 0) if player else 0
+    except Exception as e:
+        print(f"Error en get_rob_cooldown: {e}")
+        return 0
+
+async def update_rob_cooldown(discord_id):
+    """Actualiza el cooldown del robo en Supabase"""
+    try:
+        await update_player(discord_id, {"last_rob": int(time.time())})
+        return True
+    except Exception as e:
+        print(f"Error en update_rob_cooldown: {e}")
+        return False
+
+async def attempt_robbery(robber_id, victim_id, robber_username, victim_username):
+    """Intenta realizar un robo usando Supabase"""
+    try:
+        # Obtener jugadores
+        robber_data = await get_player(robber_id, robber_username)
+        victim_data = await get_player(victim_id, victim_username)
         
-        # Asegurar penalización mínima de 1 moneda
-        penalty_amount = max(1, penalty_amount)
+        if not robber_data or not victim_data:
+            return "error", 0, 0, 0, 0
         
-        # Limitar la penalización máxima al 50% del balance actual del ladrón
-        # Esto evita que un robo fallido sea catastrófico
-        max_penalty = max(1, int(robber_balance * 0.5))
-        penalty_amount = min(penalty_amount, max_penalty)
+        robber_balance = robber_data["balance"]
+        victim_balance = victim_data["balance"]
         
-        # Aplicar penalización (puede dejar balance negativo, pero limitado)
-        update_balance_local(robber_id, -penalty_amount)
-        update_balance_local(victim_id, penalty_amount)
-        conn.close()
-        return "failed", 0, rob_percentage, penalty_amount, attempted_rob_amount
+        if robber_balance < 0:
+            return "insufficient_funds", 0, 0, 0, 0
+        
+        if victim_balance < 1:
+            return "victim_poor", 0, 0, 0, 0
+        
+        # Determinar porcentaje de robo
+        rob_percentage = get_rob_percentage(victim_balance)
+        attempted_rob_amount = int(victim_balance * rob_percentage)
+        attempted_rob_amount = max(1, attempted_rob_amount)
+        actual_rob_amount = min(attempted_rob_amount, victim_balance)
+        
+        # Probabilidad de éxito
+        success = random.random() <= ROB_SUCCESS_RATE
+        
+        if success:
+            # Robo exitoso
+            await update_balance(victim_id, -actual_rob_amount)
+            await update_balance(robber_id, actual_rob_amount)
+            return "success", actual_rob_amount, rob_percentage, 0, attempted_rob_amount
+        else:
+            # Robo fallido
+            penalty_amount = int(attempted_rob_amount * ROB_PENALTY_PERCENT)
+            penalty_amount = max(1, penalty_amount)
+            max_penalty = max(1, int(robber_balance * 0.5))
+            penalty_amount = min(penalty_amount, max_penalty)
+            
+            await update_balance(robber_id, -penalty_amount)
+            await update_balance(victim_id, penalty_amount)
+            return "failed", 0, rob_percentage, penalty_amount, attempted_rob_amount
+            
+    except Exception as e:
+        print(f"Error en attempt_robbery: {e}")
+        return "error", 0, 0, 0, 0
 
 def setup_command(economy_group, cog):
     """Configura el comando robar en el grupo economy"""
@@ -157,7 +113,6 @@ def setup_command(economy_group, cog):
         victim_id = str(usuario.id)
         victim_username = usuario.name
         
-        # No permitir robarse a sí mismo
         if robber_id == victim_id:
             embed = discord.Embed(
                 title="❌ Robo Fallido",
@@ -168,7 +123,7 @@ def setup_command(economy_group, cog):
             return
         
         # Verificar cooldown
-        last_rob = get_rob_cooldown(robber_id)
+        last_rob = await get_rob_cooldown(robber_id)
         current_time = int(time.time())
         time_since_last_rob = current_time - last_rob
         
@@ -186,17 +141,17 @@ def setup_command(economy_group, cog):
             return
         
         # Intentar el robo
-        result, amount, percentage, penalty, attempted_amount = attempt_robbery(
+        result, amount, percentage, penalty, attempted_amount = await attempt_robbery(
             robber_id, victim_id, robber_username, victim_username
         )
         
-        # Solo actualizar el cooldown si el robo se intentó realmente
-        # (no cuando hay fondos insuficientes o víctima pobre)
-        if result not in ["insufficient_funds", "victim_poor"]:
-            update_rob_cooldown(robber_id)
+        # Actualizar cooldown si el robo se intentó realmente
+        if result not in ["insufficient_funds", "victim_poor", "error"]:
+            await update_rob_cooldown(robber_id)
         
-        # Obtener el nuevo balance del ladrón después del robo
-        robber_new_balance = get_player_local(robber_id, robber_username)[2]
+        # Obtener nuevo balance del ladrón
+        robber_new_data = await get_player(robber_id, robber_username)
+        robber_new_balance = robber_new_data["balance"] if robber_new_data else 0
         
         if result == "insufficient_funds":
             embed = discord.Embed(
@@ -216,8 +171,16 @@ def setup_command(economy_group, cog):
             await interaction.response.send_message(embed=embed)
             return
         
+        elif result == "error":
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Ha ocurrido un error al procesar el robo.",
+                color=discord.Color.red()
+            )
+            await interaction.response.send_message(embed=embed)
+            return
+        
         elif result == "success":
-            # Mensajes divertidos para robos exitosos
             success_messages = [
                 "¡Un robo limpio y profesional!",
                 "¡Le has aliviado la cartera sin que se diera cuenta!",
@@ -240,7 +203,6 @@ def setup_command(economy_group, cog):
             await interaction.response.send_message(embed=embed)
         
         elif result == "failed":
-            # Mensajes divertidos para robos fallidos
             fail_messages = [
                 "¡Casi lo logras! Pero te atraparon.",
                 "¡Plan perfecto, ejecución desastrosa!",
@@ -260,7 +222,6 @@ def setup_command(economy_group, cog):
                 inline=False
             )
             
-            # Mostrar advertencia si quedó en deuda
             if robber_new_balance < 0:
                 embed.add_field(
                     name="⚠️ ¡ALERTA DE DEUDA!",
@@ -277,7 +238,6 @@ def setup_command(economy_group, cog):
             embed.set_thumbnail(url=interaction.user.display_avatar.url)
             await interaction.response.send_message(embed=embed)
 
-    # Añadir un comando de estadísticas de robo para que los jugadores vean que es rentable
     @economy_group.command(name="estadisticas_robo", description="Muestra las estadísticas y expectativas del sistema de robos")
     async def estadisticas_robo(interaction: discord.Interaction):
         embed = discord.Embed(
@@ -286,7 +246,6 @@ def setup_command(economy_group, cog):
             color=discord.Color.blue()
         )
         
-        # Ejemplo de cálculo de expectativa
         ejemplo_victima = 1000
         porcentaje_ejemplo = get_rob_percentage(ejemplo_victima)
         monto_intentado = int(ejemplo_victima * porcentaje_ejemplo)
