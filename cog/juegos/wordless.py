@@ -18,7 +18,7 @@ supabase: Client = create_client(supabase_url, supabase_key)
 
 # Configuración
 INITIAL_BALANCE = 500
-CHANNEL_LEADERBOARD_ID = int os.getenv("CHANNEL_LEADERBOARD_ID")
+CHANNEL_LEADERBOARD_ID = int(os.getenv("CHANNEL_LEADERBOARD_ID"))
 TEMP_CHANNEL_PREFIX = "wordless-"
 REWARD_1ST = 1000
 REWARD_2ND = 500

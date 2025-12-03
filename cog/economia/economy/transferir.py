@@ -15,7 +15,7 @@ supabase: Client = create_client(supabase_url, supabase_key)
 
 # Configuración
 INITIAL_BALANCE = 500
-CHANNEL_LEADERBOARD_ID = int os.getenv("CHANNEL_LEADERBOARD_ID")
+CHANNEL_LEADERBOARD_ID = int(os.getenv("CHANNEL_LEADERBOARD_ID"))
 
 # Funciones de base de datos locales
 async def get_player(discord_id, username):
