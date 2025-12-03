@@ -326,16 +326,6 @@ git checkout -b mi-nueva-feature
 
 ---
 
-## 📞 **Soporte y Contacto**
-
-| Medio | Enlace/Uso |
-|-------|------------|
-| **Servidor de Discord** | [Únete para soporte](enlace) |
-| **Issues de GitHub** | Para bugs y features |
-| **Email de Contacto** | contacto@ejemplo.com |
-
----
-
 ## ✨ **Agradecimientos**
 
 Un especial agradecimiento a:
