@@ -360,6 +360,7 @@ Clase-Bot_v5/
 | **ics.py** | Latest | Parseo de calendarios iCal |
 | **requests** | 2.31+ | Comunicación HTTP |
 | **python-dotenv** | Latest | Gestión de variables de entorno |
+| **Flask** | Latest | Creación de Web local |
 
 ---
 
