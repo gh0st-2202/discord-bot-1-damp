@@ -1,4 +1,9 @@
-Bot Discord Clase v5:
+¡¡¡NOVEDADES!!!
+  - Base de datos online con supabase
+  - Reestructuración de código, cada archivo es un comando independiente a excepción de los juegos
+  - 
+
+Funciones Bot Discord Clase v5:
   - ping
   - economia
     · saldo
@@ -11,8 +16,9 @@ Bot Discord Clase v5:
   - calendario:
     · auto-sincronizado
     · enlaces en el .env
-
-BASE DE DATOS ONLINE CON SUPABASE!!!
+  - sudo:
+    · give
+    · leaderboard
 
 POR HACER (cuando se termine, será v5-final):
   - criptomonedas

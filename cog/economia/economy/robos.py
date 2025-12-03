@@ -2,17 +2,20 @@ import discord
 from discord import app_commands
 import time
 import random
-from typing import Optional
-import sys
 import os
+from supabase import create_client, Client
+from dotenv import load_dotenv
 
-# Agregar el directorio padre al path para importar desde economy.py
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Cargar variables de entorno
+load_dotenv()
 
-# Importar desde el módulo principal
-from economy import get_player, update_balance, update_player
+# Inicializar cliente de Supabase
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(supabase_url, supabase_key)
 
-# Configuración del sistema de robos
+# Configuración
+INITIAL_BALANCE = 500
 ROB_SUCCESS_RATE = 0.40
 ROB_COOLDOWN = 1800
 ROB_PENALTY_PERCENT = 0.25
@@ -27,6 +30,91 @@ ROB_PERCENTAGES = {
     7: 0.10
 }
 
+# Funciones de base de datos locales
+async def get_player(discord_id, username):
+    """Obtiene o crea un jugador en Supabase"""
+    try:
+        response = supabase.table("players").select("*").eq("discord_id", discord_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        else:
+            new_player = {
+                "discord_id": discord_id,
+                "username": username,
+                "balance": INITIAL_BALANCE,
+                "created_at": time.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            response = supabase.table("players").insert(new_player).execute()
+            return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"Error en get_player: {e}")
+        return None
+
+async def update_balance(discord_id, amount):
+    """Actualiza el balance de un jugador en Supabase"""
+    try:
+        response = supabase.table("players").select("balance").eq("discord_id", discord_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            current_balance = response.data[0]["balance"]
+            new_balance = current_balance + amount
+            
+            supabase.table("players").update({"balance": new_balance}).eq("discord_id", discord_id).execute()
+            return new_balance
+        return None
+    except Exception as e:
+        print(f"Error en update_balance: {e}")
+        return None
+
+async def update_player(discord_id, data):
+    """Actualiza múltiples campos de un jugador en Supabase"""
+    try:
+        supabase.table("players").update(data).eq("discord_id", discord_id).execute()
+        return True
+    except Exception as e:
+        print(f"Error en update_player: {e}")
+        return False
+
+async def get_leaderboard(limit=10):
+    """Obtiene el leaderboard desde Supabase"""
+    try:
+        response = supabase.table("players").select("username, balance").order("balance", desc=True).limit(limit).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"Error en get_leaderboard: {e}")
+        return []
+
+async def update_global_leaderboard(bot):
+    """Actualiza el leaderboard global en el canal especificado"""
+    CHANNEL_LEADERBOARD_ID = 1430215076769435800
+    channel = bot.get_channel(CHANNEL_LEADERBOARD_ID)
+    if not channel:
+        print("❌ Canal de leaderboard no encontrado")
+        return
+    
+    try:
+        leaderboard = await get_leaderboard(10)
+        await channel.purge()
+        
+        embed = discord.Embed(title="🏆 TABLA DE LÍDERES GLOBAL", color=discord.Color.gold())
+        
+        for i, player in enumerate(leaderboard[:10], start=1):
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+            embed.add_field(
+                name=f"{medal} {player['username']}", 
+                value=f"```{player['balance']:,} monedas```", 
+                inline=False
+            )
+        
+        embed.set_footer(text="Actualizado automáticamente")
+        await channel.send(embed=embed)
+        print("✅ Leaderboard global actualizado")
+        
+    except Exception as e:
+        print(f"❌ Error actualizando leaderboard: {e}")
+
+# Funciones específicas de robos
 def get_digit_count(amount):
     return len(str(abs(amount)))
 
@@ -45,19 +133,9 @@ async def get_rob_cooldown(discord_id):
         print(f"Error en get_rob_cooldown: {e}")
         return 0
 
-async def update_rob_cooldown(discord_id):
-    """Actualiza el cooldown del robo en Supabase"""
-    try:
-        await update_player(discord_id, {"last_rob": int(time.time())})
-        return True
-    except Exception as e:
-        print(f"Error en update_rob_cooldown: {e}")
-        return False
-
 async def attempt_robbery(robber_id, victim_id, robber_username, victim_username):
     """Intenta realizar un robo usando Supabase"""
     try:
-        # Obtener jugadores
         robber_data = await get_player(robber_id, robber_username)
         victim_data = await get_player(victim_id, victim_username)
         
@@ -73,22 +151,18 @@ async def attempt_robbery(robber_id, victim_id, robber_username, victim_username
         if victim_balance < 1:
             return "victim_poor", 0, 0, 0, 0
         
-        # Determinar porcentaje de robo
         rob_percentage = get_rob_percentage(victim_balance)
         attempted_rob_amount = int(victim_balance * rob_percentage)
         attempted_rob_amount = max(1, attempted_rob_amount)
         actual_rob_amount = min(attempted_rob_amount, victim_balance)
         
-        # Probabilidad de éxito
         success = random.random() <= ROB_SUCCESS_RATE
         
         if success:
-            # Robo exitoso
             await update_balance(victim_id, -actual_rob_amount)
             await update_balance(robber_id, actual_rob_amount)
             return "success", actual_rob_amount, rob_percentage, 0, attempted_rob_amount
         else:
-            # Robo fallido
             penalty_amount = int(attempted_rob_amount * ROB_PENALTY_PERCENT)
             penalty_amount = max(1, penalty_amount)
             max_penalty = max(1, int(robber_balance * 0.5))
@@ -103,8 +177,6 @@ async def attempt_robbery(robber_id, victim_id, robber_username, victim_username
         return "error", 0, 0, 0, 0
 
 def setup_command(economy_group, cog):
-    """Configura el comando robar en el grupo economy"""
-    
     @economy_group.command(name="robar", description="Intenta robar monedas a otro usuario (riesgo moderado)")
     @app_commands.describe(usuario="El usuario al que quieres robar")
     async def robar(interaction: discord.Interaction, usuario: discord.User):
@@ -140,14 +212,13 @@ def setup_command(economy_group, cog):
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
         
+        # Actualizar cooldown inmediatamente
+        await update_player(robber_id, {"last_rob": current_time})
+        
         # Intentar el robo
         result, amount, percentage, penalty, attempted_amount = await attempt_robbery(
             robber_id, victim_id, robber_username, victim_username
         )
-        
-        # Actualizar cooldown si el robo se intentó realmente
-        if result not in ["insufficient_funds", "victim_poor", "error"]:
-            await update_rob_cooldown(robber_id)
         
         # Obtener nuevo balance del ladrón
         robber_new_data = await get_player(robber_id, robber_username)
@@ -201,6 +272,13 @@ def setup_command(economy_group, cog):
             )
             embed.set_thumbnail(url=interaction.user.display_avatar.url)
             await interaction.response.send_message(embed=embed)
+            
+            # Actualizar leaderboard global
+            try:
+                await update_global_leaderboard(interaction.client)
+                print(f"✅ Leaderboard actualizado después de robo exitoso de {robber_username}")
+            except Exception as e:
+                print(f"❌ Error actualizando leaderboard después de robo exitoso: {e}")
         
         elif result == "failed":
             fail_messages = [
@@ -237,6 +315,13 @@ def setup_command(economy_group, cog):
             
             embed.set_thumbnail(url=interaction.user.display_avatar.url)
             await interaction.response.send_message(embed=embed)
+            
+            # Actualizar leaderboard global
+            try:
+                await update_global_leaderboard(interaction.client)
+                print(f"✅ Leaderboard actualizado después de robo fallido de {robber_username}")
+            except Exception as e:
+                print(f"❌ Error actualizando leaderboard después de robo fallido: {e}")
 
     @economy_group.command(name="estadisticas_robo", description="Muestra las estadísticas y expectativas del sistema de robos")
     async def estadisticas_robo(interaction: discord.Interaction):

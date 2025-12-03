@@ -1,18 +1,44 @@
 import discord
 from discord import app_commands
-from typing import Optional
-import sys
+import time
 import os
+from supabase import create_client, Client
+from dotenv import load_dotenv
+from typing import Optional
 
-# Agregar el directorio padre al path para importar desde economy.py
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Cargar variables de entorno
+load_dotenv()
 
-# Importar desde el módulo principal
-from economy import get_player, supabase
+# Inicializar cliente de Supabase
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(supabase_url, supabase_key)
+
+# Configuración
+INITIAL_BALANCE = 500
+
+# Funciones de base de datos locales
+async def get_player(discord_id, username):
+    """Obtiene o crea un jugador en Supabase"""
+    try:
+        response = supabase.table("players").select("*").eq("discord_id", discord_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        else:
+            new_player = {
+                "discord_id": discord_id,
+                "username": username,
+                "balance": INITIAL_BALANCE,
+                "created_at": time.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            response = supabase.table("players").insert(new_player).execute()
+            return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"Error en get_player: {e}")
+        return None
 
 def setup_command(economy_group, cog):
-    """Configura el comando saldo en el grupo economy con parámetro opcional"""
-    
     @economy_group.command(name="saldo", description="Muestra tu saldo o el de otro usuario")
     @app_commands.describe(usuario="Usuario cuyo saldo quieres ver (opcional)")
     async def saldo(interaction: discord.Interaction, usuario: Optional[discord.User] = None):
