@@ -253,13 +253,6 @@ class ForfeitButton(discord.ui.View):
         else:
             await interaction.response.send_message("No hay partida activa.", ephemeral=True)
 
-# Grupo de comandos de Wordless
-wordless_group = app_commands.Group(
-    name="wordless", 
-    description="Comandos para jugar al Wordless (Wordle)",
-    default_permissions=None
-)
-
 class WordlessCog(commands.Cog):
     """Cog principal para el juego Wordless"""
     def __init__(self, bot):
@@ -280,8 +273,11 @@ class WordlessCog(commands.Cog):
             # Eliminar juego del diccionario
             del self.games[user_id]
 
-    @wordless_group.command(name="start", description="Inicia una partida privada de Wordless (Wordle)")
-    async def start(self, interaction: discord.Interaction):
+    # Grupo de comandos de Wordless
+    wordless = app_commands.Group(name="wordless", description="Comandos para jugar al Wordless (Wordle)")
+
+    @wordless.command(name="crear", description="Inicia una partida privada de Wordless (Wordle)")
+    async def crear(self, interaction: discord.Interaction):
         """Comando para iniciar una nueva partida de Wordless"""
         user_id = interaction.user.id
         
@@ -346,7 +342,7 @@ class WordlessCog(commands.Cog):
             ephemeral=True
         )
 
-    @wordless_group.command(name="intento", description="Envía un intento en tu partida de Wordless")
+    @wordless.command(name="intento", description="Envía un intento en tu partida de Wordless")
     @app_commands.describe(palabra="La palabra de 5 letras que quieres intentar")
     async def intento(self, interaction: discord.Interaction, palabra: str):
         """Comando para enviar un intento en Wordless"""
@@ -359,7 +355,7 @@ class WordlessCog(commands.Cog):
 
         if not game:
             await interaction.response.send_message(
-                "❌ Este no es un canal de Wordless activo. Usa `/wordless start` para empezar una partida.",
+                "❌ Este no es un canal de Wordless activo. Usa `/wordless crear` para empezar una partida.",
                 ephemeral=True
             )
             return
@@ -475,6 +471,4 @@ class WordlessCog(commands.Cog):
 
 async def setup(bot):
     """Función de setup para cargar el cog"""
-    bot.tree.add_command(wordless_group)
-    wordless_cog = WordlessCog(bot)
-    await bot.add_cog(wordless_cog)
+    await bot.add_cog(WordlessCog(bot))

@@ -225,20 +225,16 @@ class BlackjackButtons(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=None)
         self.stop()
 
-# Grupo de comandos de Blackjack
-blackjack_group = app_commands.Group(
-    name="blackjack", 
-    description="Comandos para jugar al Blackjack",
-    default_permissions=None
-)
-
 class BlackjackCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.current_bet_min = 0
         self.player_bets = {}
 
-    @blackjack_group.command(name="crear", description="Inicia una partida de blackjack multijugador.")
+    # Grupo de comandos de Blackjack
+    blackjack = app_commands.Group(name="blackjack", description="Comandos para jugar al Blackjack")
+
+    @blackjack.command(name="crear", description="Inicia una partida de blackjack multijugador.")
     @app_commands.describe(apuesta_min="Cantidad mínima a apostar")
     async def crear(self, interaction: discord.Interaction, apuesta_min: int):
         if apuesta_min <= 0:
@@ -561,7 +557,7 @@ class BlackjackCog(commands.Cog):
         except Exception as e:
             print(f"❌ Error actualizando leaderboard/trophy después de blackjack: {e}")
 
-    @blackjack_group.command(name="unirse", description="Únete a la partida de Blackjack actual.")
+    @blackjack.command(name="unirse", description="Únete a la partida de Blackjack actual.")
     @app_commands.describe(apuesta="Cantidad a apostar")
     async def unirse(self, interaction: discord.Interaction, apuesta: int):
         if self.current_bet_min == 0:
@@ -595,6 +591,4 @@ class BlackjackCog(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
 async def setup(bot):
-    bot.tree.add_command(blackjack_group)
-    blackjack_cog = BlackjackCog(bot)
-    await bot.add_cog(blackjack_cog)
+    await bot.add_cog(BlackjackCog(bot))

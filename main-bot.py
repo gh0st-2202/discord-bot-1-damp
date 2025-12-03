@@ -131,9 +131,6 @@ def setup_supabase_tables():
         # Insertar datos iniciales
         insert_initial_data()
         
-        # Configurar políticas de seguridad (Row Level Security)
-        setup_rls_policies()
-        
         print("🎉 Base de datos en Supabase configurada correctamente")
         return True
         
@@ -176,50 +173,6 @@ def insert_initial_data():
             
     except Exception as e:
         print(f"⚠️  Error insertando datos iniciales: {e}")
-
-def setup_rls_policies():
-    """Configura las políticas de seguridad (Row Level Security)"""
-    try:
-        # Verificar si RLS está activado y configurar políticas simples
-        print("🔐 Configurando políticas de seguridad...")
-        
-        # Para desarrollo, podemos desactivar RLS temporalmente
-        # o crear políticas que permitan todo
-        try:
-            # Crear política que permite todas las operaciones para development
-            sql_rls = """
-            -- Habilitar RLS en todas las tablas
-            ALTER TABLE players ENABLE ROW LEVEL SECURITY;
-            ALTER TABLE crypto_wallets ENABLE ROW LEVEL SECURITY;
-            ALTER TABLE crypto_prices ENABLE ROW LEVEL SECURITY;
-            ALTER TABLE crypto_current_prices ENABLE ROW LEVEL SECURITY;
-            
-            -- Crear políticas que permiten todo (solo para desarrollo)
-            DROP POLICY IF EXISTS "allow_all_players" ON players;
-            CREATE POLICY "allow_all_players" ON players
-                FOR ALL USING (true);
-                
-            DROP POLICY IF EXISTS "allow_all_crypto_wallets" ON crypto_wallets;
-            CREATE POLICY "allow_all_crypto_wallets" ON crypto_wallets
-                FOR ALL USING (true);
-                
-            DROP POLICY IF EXISTS "allow_all_crypto_prices" ON crypto_prices;
-            CREATE POLICY "allow_all_crypto_prices" ON crypto_prices
-                FOR ALL USING (true);
-                
-            DROP POLICY IF EXISTS "allow_all_crypto_current_prices" ON crypto_current_prices;
-            CREATE POLICY "allow_all_crypto_current_prices" ON crypto_current_prices
-                FOR ALL USING (true);
-            """
-            supabase.rpc('exec_sql', {'sql': sql_rls}).execute()
-            print("✅ Políticas RLS configuradas")
-            
-        except Exception as e:
-            print(f"⚠️  Error configurando RLS: {e}")
-            print("ℹ️  Puedes configurar RLS manualmente en el dashboard de Supabase")
-            
-    except Exception as e:
-        print(f"⚠️  Error en configuración de RLS: {e}")
 
 # Función alternativa si exec_sql no está disponible
 def create_tables_alternative():
@@ -453,11 +406,16 @@ async def on_ready():
     # Sincronizar comandos
     try:
         synced = await bot.tree.sync()
-        print(f"📜 {len(synced)} comandos sincronizados")
+        print(f"📜 {len(synced)} comandos cargados:")
+        
+        # Mostrar cada comando cargado
+        for cmd in synced:
+            print(f"  /{cmd.name}")
+            
     except Exception as e:
         print(f"❌ Error sincronizando comandos: {e}")
     
-    # Iniciar tareas en segundo plano
+    # Iniciar tareas en segundo plan
     await start_background_tasks()
 
 async def start_background_tasks():
