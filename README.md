@@ -216,6 +216,91 @@ SUPABASE_KEY=tu_clave_supabase
 
 ---
 
+## 🗂️ **Configuración de Supabase**
+
+### **Archivo `sql`**
+```sql
+-- 1. Tabla de jugadores
+CREATE TABLE players (
+    discord_id TEXT PRIMARY KEY,
+    username TEXT,
+    balance INTEGER DEFAULT 500,
+    daily_streak INTEGER DEFAULT 0,
+    last_daily TIMESTAMP WITH TIME ZONE,
+    last_rob INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 2. Tabla de wallets de criptomonedas
+CREATE TABLE crypto_wallets (
+    discord_id TEXT PRIMARY KEY,
+    btc_balance REAL DEFAULT 0,
+    eth_balance REAL DEFAULT 0,
+    dog_balance REAL DEFAULT 0,
+    last_btc_trade TIMESTAMP WITH TIME ZONE,
+    last_eth_trade TIMESTAMP WITH TIME ZONE,
+    last_dog_trade TIMESTAMP WITH TIME ZONE,
+    total_invested REAL DEFAULT 0,
+    total_withdrawn REAL DEFAULT 0
+);
+
+-- 3. Tabla de precios históricos
+CREATE TABLE crypto_prices (
+    id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    btc_price REAL,
+    eth_price REAL,
+    dog_price REAL
+);
+
+-- 4. Tabla de precios actuales
+CREATE TABLE crypto_current_prices (
+    crypto TEXT PRIMARY KEY,
+    price REAL,
+    last_update TIMESTAMP WITH TIME ZONE
+);
+
+-- 5. Insertar precios iniciales
+INSERT INTO crypto_current_prices (crypto, price, last_update) VALUES
+    ('BTC', 10000, NOW()),
+    ('ETH', 3000, NOW()),
+    ('DOG', 50, NOW())
+ON CONFLICT (crypto) DO NOTHING;
+
+-- 6. Insertar primer registro histórico
+INSERT INTO crypto_prices (btc_price, eth_price, dog_price) VALUES
+    (10000, 3000, 50);
+```
+
+### Archivo de claves RLS
+```rls
+-- Habilitar RLS en todas las tablas
+ALTER TABLE players ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crypto_wallets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crypto_prices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crypto_current_prices ENABLE ROW LEVEL SECURITY;
+
+-- Crear políticas para permitir todas las operaciones (para tu bot)
+
+-- Políticas para players
+CREATE POLICY "Allow all operations on players" ON players
+    FOR ALL USING (true);
+
+-- Políticas para crypto_wallets
+CREATE POLICY "Allow all operations on crypto_wallets" ON crypto_wallets
+    FOR ALL USING (true);
+
+-- Políticas para crypto_prices (solo lectura pública)
+CREATE POLICY "Allow read on crypto_prices" ON crypto_prices
+    FOR SELECT USING (true);
+
+-- Políticas para crypto_current_prices (solo lectura pública)
+CREATE POLICY "Allow read on crypto_current_prices" ON crypto_current_prices
+    FOR SELECT USING (true);
+```
+
+---
+
 ## 🏗️ **Estructura del Proyecto**
 
 ```
