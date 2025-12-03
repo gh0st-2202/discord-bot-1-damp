@@ -16,6 +16,7 @@ supabase: Client = create_client(supabase_url, supabase_key)
 
 # Configuración
 INITIAL_BALANCE = 500
+CHANNEL_LEADERBOARD_ID = os.getenv("CHANNEL_LEADERBOARD_ID")
 
 # Funciones de base de datos locales
 async def get_player(discord_id, username):
@@ -58,7 +59,6 @@ async def get_leaderboard(limit=10):
 
 async def update_global_leaderboard(bot):
     """Actualiza el leaderboard global en el canal especificado"""
-    CHANNEL_LEADERBOARD_ID = 1430215076769435800
     channel = bot.get_channel(CHANNEL_LEADERBOARD_ID)
     if not channel:
         print("❌ Canal de leaderboard no encontrado")

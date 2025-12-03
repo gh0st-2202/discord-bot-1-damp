@@ -65,7 +65,6 @@ Conecta múltiples fuentes para una gestión académica completa:
 **🔗 Fuentes Soportadas:**
 - ✅ Google Calendar (eventos y exámenes)
 - ✅ Moodle/Canvas (tareas y plazos)
-- ⏳ Microsoft Teams (en desarrollo)
 
 ---
 
@@ -84,7 +83,7 @@ Sistema económico completo con interacciones sociales:
 # Ejemplo: /economy transferir @amigo 500
 
 /economy diario
-# Reclama tu recompensa diaria (cooldown: 24h)
+# Reclama tu recompensa diaria
 ```
 
 ### **Interacciones de Riesgo** ⚠️
@@ -115,11 +114,6 @@ Conectado a modelos avanzados a través de OpenRouter:
 /ia Explícame la fotosíntesis model:gpt-4
 ```
 
-### **Modelos Disponibles:**
-- 🤖 **GPT-4** (recomendado para tareas complejas)
-- ⚡ **Claude Instant** (rápido y eficiente)
-- 🎨 **DALL-E** (generación de imágenes, próximamente)
-
 ---
 
 ## 🎮 **Juegos Integrados**
@@ -141,7 +135,7 @@ Conectado a modelos avanzados a través de OpenRouter:
 ### **🔤 Wordless - Adivina la Palabra**
 ```bash
 # 1. Iniciar juego
-/wordless start
+/wordless crear
 # El bot elige una palabra secreta
 
 # 2. Hacer intentos
@@ -193,6 +187,9 @@ python main-bot.py
 ```env
 # Discord
 DISCORD_TOKEN=tu_token_aqui
+CHANNEL_LEADERBOARD_ID=id_canal_leaderboard
+CHANNEL_TROPHY_ID=id_canal_ganadores
+CHANNEL_BET_ID=id_canal_apuestas
 
 # Inteligencia Artificial
 OPENROUTER_API_KEY=tu_clave_openrouter
