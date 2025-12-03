@@ -4,5 +4,6 @@ icalendar>=5.0.0
 pytz>=2023.3
 python-dotenv>=1.0.0
 aiohttp
+Flask
 postgrest
 supabase

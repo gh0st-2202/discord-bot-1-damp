@@ -10,6 +10,8 @@ from datetime import datetime
 from supabase import create_client, Client
 import postgrest
 import time
+from flask import Flask, render_template_string
+import threading
 
 # ------------------------- CONFIGURACIÓN DEL BOT ---------------------------
 load_dotenv()
@@ -17,11 +19,6 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 INITIAL_BALANCE = 500
-
-# Configuración de GitHub
-GITHUB_REPO_URL = os.getenv("GITHUB_REPO_URL")  # URL del repositorio GitHub
-GITHUB_BACKUP_DIR = "./github_backup"  # Directorio temporal para git
-BACKUP_INTERVAL = 300  # 5 minutos en segundos
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -32,6 +29,285 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # Inicializar cliente de Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 bot.supabase = supabase  # Hacerlo disponible para otros cogs
+
+# ------------------------- SERVIDOR WEB FLASK -----------------------------
+app = Flask(__name__)
+
+# Variables para el estado del bot
+bot_status = {
+    "status": "iniciando",
+    "start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    "guild_count": 0,
+    "user_count": 0,
+    "command_count": 0
+}
+
+# Plantilla HTML para la página web
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estado del Bot Discord</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .header {
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+        
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #667eea;
+            transition: transform 0.3s ease;
+        }
+        
+        .status-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        
+        .status-online {
+            background-color: #4CAF50;
+            box-shadow: 0 0 10px #4CAF50;
+        }
+        
+        .status-offline {
+            background-color: #f44336;
+        }
+        
+        .status-starting {
+            background-color: #ff9800;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .stat-box {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border: 1px solid #eaeaea;
+        }
+        
+        .stat-box h3 {
+            color: #667eea;
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+        
+        .stat-box p {
+            color: #666;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            color: #888;
+            font-size: 0.9rem;
+        }
+        
+        .last-update {
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        .uptime {
+            background: linear-gradient(45deg, #4CAF50, #8BC34A);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            display: inline-block;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Bot Discord</h1>
+            <p>Sistema de economía y juegos para Discord</p>
+        </div>
+        
+        <div class="status-card">
+            <h2>
+                <span class="status-indicator {{ 'status-online' if status == 'online' else 'status-starting' if status == 'iniciando' else 'status-offline' }}"></span>
+                Estado: 
+                {% if status == 'online' %}
+                    <span style="color: #4CAF50;">CONECTADO ✅</span>
+                {% elif status == 'iniciando' %}
+                    <span style="color: #ff9800;">INICIANDO ⚠️</span>
+                {% else %}
+                    <span style="color: #f44336;">DESCONECTADO ❌</span>
+                {% endif %}
+            </h2>
+            <p>Servidor web funcionando en puerto 8080</p>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-box">
+                <h3>{{ guild_count }}</h3>
+                <p>Servidores</p>
+            </div>
+            <div class="stat-box">
+                <h3>{{ user_count }}</h3>
+                <p>Usuarios Totales</p>
+            </div>
+            <div class="stat-box">
+                <h3>{{ command_count }}</h3>
+                <p>Comandos</p>
+            </div>
+            <div class="stat-box">
+                <h3>{{ start_time.split(' ')[0] }}</h3>
+                <p>Fecha de Inicio</p>
+            </div>
+        </div>
+        
+        <div class="uptime">
+            ⏰ {{ uptime }}
+        </div>
+        
+        <div class="footer">
+            <p>Última actualización: <span class="last-update">{{ last_update }}</span></p>
+            <p>Bot diseñado para Discord | Sistema de economía con Supabase</p>
+        </div>
+    </div>
+    
+    <script>
+        // Actualizar la página cada 30 segundos
+        setTimeout(function() {
+            location.reload();
+        }, 30000);
+        
+        // Mostrar hora actualizada
+        function updateTime() {
+            const now = new Date();
+            document.querySelector('.last-update').textContent = 
+                now.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'});
+        }
+        
+        // Actualizar cada segundo
+        setInterval(updateTime, 1000);
+        updateTime();
+    </script>
+</body>
+</html>
+"""
+
+@app.route('/')
+def index():
+    # Calcular tiempo de actividad
+    start = datetime.strptime(bot_status["start_time"], "%Y-%m-%d %H:%M:%S")
+    now = datetime.now()
+    uptime = now - start
+    
+    # Formatear el tiempo de actividad
+    days = uptime.days
+    hours, remainder = divmod(uptime.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    if days > 0:
+        uptime_str = f"{days}d {hours}h {minutes}m"
+    elif hours > 0:
+        uptime_str = f"{hours}h {minutes}m"
+    else:
+        uptime_str = f"{minutes}m {seconds}s"
+    
+    return render_template_string(HTML_TEMPLATE,
+        status=bot_status["status"],
+        start_time=bot_status["start_time"],
+        guild_count=bot_status["guild_count"],
+        user_count=bot_status["user_count"],
+        command_count=bot_status["command_count"],
+        last_update=datetime.now().strftime("%H:%M:%S"),
+        uptime=uptime_str
+    )
+
+@app.route('/health')
+def health():
+    return {
+        "status": bot_status["status"],
+        "timestamp": datetime.now().isoformat(),
+        "service": "discord_bot",
+        "version": "1.0.0"
+    }
+
+@app.route('/api/stats')
+def stats():
+    return bot_status
+
+def run_web_server():
+    """Inicia el servidor web Flask"""
+    print(f"🌐 Iniciando servidor web en puerto 8080...")
+    app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
+
+# Iniciar servidor web en un hilo separado
+web_thread = threading.Thread(target=run_web_server, daemon=True)
+web_thread.start()
 # ---------------------------------------------------------------------------
 
 # -------------------- CREACIÓN DE TABLAS EN SUPABASE -----------------------
@@ -398,6 +674,11 @@ async def load_all():
 # ------------------------------ CARGAR BOT ---------------------------------
 @bot.event
 async def on_ready():
+    # Actualizar estado del bot
+    bot_status["status"] = "online"
+    bot_status["guild_count"] = len(bot.guilds)
+    bot_status["user_count"] = sum(guild.member_count for guild in bot.guilds)
+    
     print(f"🤖 Bot conectado como {bot.user}")
     
     # Cargar extensiones
@@ -406,6 +687,7 @@ async def on_ready():
     # Sincronizar comandos
     try:
         synced = await bot.tree.sync()
+        bot_status["command_count"] = len(synced)
         print(f"📜 {len(synced)} comandos cargados:")
         
         # Mostrar cada comando cargado
@@ -503,4 +785,10 @@ def migrate_from_sqlite():
 migrate_from_sqlite()
 # ---------------------------------------------------------------------------
 
-bot.run(TOKEN)
+# ------------------------ INICIAR BOT ---------------------------------------
+try:
+    print("🚀 Iniciando bot y servidor web...")
+    bot.run(TOKEN)
+except Exception as e:
+    bot_status["status"] = "error"
+    print(f"❌ Error al iniciar bot: {e}")
