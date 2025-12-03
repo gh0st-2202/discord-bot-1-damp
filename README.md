@@ -273,7 +273,7 @@ INSERT INTO crypto_prices (btc_price, eth_price, dog_price) VALUES
 ```
 
 ### Archivo de claves RLS
-```rls
+```sql
 -- Habilitar RLS en todas las tablas
 ALTER TABLE players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE crypto_wallets ENABLE ROW LEVEL SECURITY;
