@@ -302,8 +302,10 @@ def setup_command(crypto_group, cog):
         
         # Footer con timestamp
         embed.timestamp = datetime.now()
+        # CORRECCIÓN: Convertir target_user.id a string antes de hacer slice
+        user_id_str = str(target_user.id)
         embed.set_footer(
-            text=f"Wallet ID: {target_user.id[:8]} • Última actualización",
+            text=f"Wallet ID: {user_id_str[:8]} • Última actualización",
             icon_url="https://cdn-icons-png.flaticon.com/512/1828/1828843.png"
         )
         
