@@ -174,6 +174,88 @@ def update_crypto_balance(discord_id, crypto, amount, total_cost=None):
         print(f"❌ Error al actualizar balance de cripto: {e}")
         return False
 
+# ============ FUNCIONES PARA ACTUALIZAR LEADERBOARD ============
+def get_leaderboard(limit=10):
+    """Obtiene el leaderboard desde Supabase"""
+    supabase = get_supabase_client()
+    try:
+        response = supabase.table("players").select("username, balance").order("balance", desc=True).limit(limit).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"❌ Error en get_leaderboard: {e}")
+        return []
+
+async def update_global_leaderboard(bot):
+    """Actualiza el leaderboard global en el canal especificado"""
+    CHANNEL_LEADERBOARD_ID = os.getenv("CHANNEL_LEADERBOARD_ID")
+    
+    if not CHANNEL_LEADERBOARD_ID:
+        print("⚠️  CHANNEL_LEADERBOARD_ID no configurado")
+        return None
+    
+    try:
+        channel_id = int(CHANNEL_LEADERBOARD_ID)
+        channel = bot.get_channel(channel_id)
+        
+        if not channel:
+            print(f"❌ Canal de leaderboard no encontrado (ID: {channel_id})")
+            return None
+        
+        leaderboard = get_leaderboard(10)
+        
+        # Intentar borrar mensajes anteriores (opcional)
+        try:
+            await channel.purge()
+        except:
+            print("⚠️  No se pudo purgar el canal, enviando nuevo mensaje")
+        
+        embed = discord.Embed(
+            title="🏆 TABLA DE LÍDERES GLOBAL - CRIPTOMONEDAS",
+            description="Ranking de jugadores por monedas totales",
+            color=discord.Color.gold()
+        )
+        
+        if not leaderboard:
+            embed.description = "📭 No hay jugadores registrados todavía."
+        else:
+            for i, player in enumerate(leaderboard[:10], start=1):
+                medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+                embed.add_field(
+                    name=f"{medal} {player['username']}", 
+                    value=f"```{player['balance']:,} monedas```", 
+                    inline=False
+                )
+        
+        # Obtener estadísticas adicionales
+        try:
+            total_response = supabase.table("players").select("balance").execute()
+            total_players = len(total_response.data) if total_response.data else 0
+            total_wealth = sum(p["balance"] for p in total_response.data) if total_response.data else 0
+            
+            embed.add_field(
+                name="📊 ESTADÍSTICAS GLOBALES",
+                value=(
+                    f"**Jugadores totales:** {total_players}\n"
+                    f"**Riqueza total:** {total_wealth:,} monedas\n"
+                    f"**Promedio por jugador:** {total_wealth//total_players if total_players > 0 else 0:,}"
+                ),
+                inline=False
+            )
+        except:
+            pass
+        
+        embed.set_footer(text="Actualizado automáticamente después de cada transacción")
+        embed.timestamp = datetime.now()
+        
+        await channel.send(embed=embed)
+        
+        print(f"✅ Leaderboard actualizado en el canal {channel_id}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error actualizando leaderboard: {e}")
+        return None
+
 # ============ COMANDO MEJORADO ============
 def setup_command(crypto_group, cog):
     @crypto_group.command(name="buy", description="Comprar criptomonedas")
@@ -297,9 +379,15 @@ def setup_command(crypto_group, cog):
             
             # Timestamp y footer
             embed.timestamp = datetime.now()
-            embed.set_footer(text=f"Transacción ID: {interaction.id[:8]}", icon_url=interaction.user.display_avatar.url)
+            embed.set_footer(text=f"Transacción ID: {str(interaction.id)[:8]}", icon_url=interaction.user.display_avatar.url)
             
             await interaction.followup.send(embed=embed, ephemeral=True)
+            
+            # Actualizar leaderboard en segundo plano
+            try:
+                await update_global_leaderboard(interaction.client)
+            except Exception as e:
+                print(f"⚠️  Error al actualizar leaderboard después de compra: {e}")
             
         except Exception as e:
             print(f"❌ Error en compra: {e}")
