@@ -9,6 +9,8 @@ from datetime import datetime
 from discord.ext import tasks
 from supabase import create_client
 import asyncio
+import json
+from pathlib import Path
 
 # Obtener credenciales de Supabase
 SUPABASE_URL = os.getenv('SUPABASE_URL')
@@ -62,6 +64,86 @@ CRYPTO_CONFIG = {
         "color": 0xF2A900
     }
 }
+
+# Diccionario para almacenar precios originales (en memoria temporalmente)
+PRICE_HISTORY_FILE = "crypto_price_history.json"
+
+def load_price_history():
+    """Carga el historial de precios desde archivo JSON"""
+    try:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        history_path = os.path.join(current_dir, PRICE_HISTORY_FILE)
+        
+        if os.path.exists(history_path):
+            with open(history_path, 'r') as f:
+                return json.load(f)
+        else:
+            # Crear estructura inicial
+            history = {
+                "BTC": {"original": 10000, "current": 10000, "change_percent": 0.0},
+                "ETH": {"original": 3000, "current": 3000, "change_percent": 0.0},
+                "DOG": {"original": 50, "current": 50, "change_percent": 0.0}
+            }
+            with open(history_path, 'w') as f:
+                json.dump(history, f, indent=2)
+            return history
+    except Exception as e:
+        print(f"❌ Error al cargar historial de precios: {e}")
+        return {
+            "BTC": {"original": 10000, "current": 10000, "change_percent": 0.0},
+            "ETH": {"original": 3000, "current": 3000, "change_percent": 0.0},
+            "DOG": {"original": 50, "current": 50, "change_percent": 0.0}
+        }
+
+def save_price_history(history):
+    """Guarda el historial de precios en archivo JSON"""
+    try:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        history_path = os.path.join(current_dir, PRICE_HISTORY_FILE)
+        
+        with open(history_path, 'w') as f:
+            json.dump(history, f, indent=2)
+    except Exception as e:
+        print(f"❌ Error al guardar historial de precios: {e}")
+
+def update_price_history_sync(crypto, new_price):
+    """Actualiza el historial de precios y calcula el porcentaje de cambio"""
+    history = load_price_history()
+    
+    if crypto not in history:
+        # Si es la primera vez, establecer original y actual
+        history[crypto] = {
+            "original": new_price,
+            "current": new_price,
+            "change_percent": 0.0
+        }
+    else:
+        # Obtener precio original (si existe) o usar el actual como original
+        original_price = history[crypto].get("original", new_price)
+        previous_price = history[crypto].get("current", new_price)
+        
+        # Calcular cambio porcentual desde el ORIGINAL (no desde el anterior)
+        change_percent = ((new_price - original_price) / original_price * 100) if original_price > 0 else 0
+        
+        # Si el cambio es muy pequeño (menos de 1%), mantener el precio original
+        # Esto simula que el "precio original" es el de la última variación significativa
+        if abs(change_percent) < 1.0:
+            # No actualizar el precio original, solo el actual
+            history[crypto] = {
+                "original": original_price,
+                "current": new_price,
+                "change_percent": change_percent
+            }
+        else:
+            # Cambio significativo, actualizar ambos
+            history[crypto] = {
+                "original": new_price,  # El nuevo precio se convierte en el "original"
+                "current": new_price,
+                "change_percent": 0.0  # Reiniciar contador
+            }
+    
+    save_price_history(history)
+    return history[crypto]["change_percent"]
 
 # ============ FUNCIONES DE LECTURA DE PRECIOS ============
 def get_current_prices_sync():
@@ -148,10 +230,13 @@ def update_prices_sync():
             if new_price != current_price:
                 updated_price = update_crypto_price_sync(crypto, new_price)
                 if updated_price:
+                    # Calcular y guardar cambio porcentual en el historial
+                    change_percent = update_price_history_sync(crypto, updated_price)
+                    
                     changes[crypto] = {
                         'old': current_price,
                         'new': updated_price,
-                        'change_percent': ((updated_price - current_price) / current_price * 100) if current_price > 0 else 0
+                        'change_percent': change_percent
                     }
                     updated_count += 1
         

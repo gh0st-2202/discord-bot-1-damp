@@ -3,6 +3,7 @@ from discord import app_commands
 import os
 from datetime import datetime
 from supabase import create_client
+import json
 
 # ============ FUNCIONES INDEPENDIENTES ============
 def get_supabase_client():
@@ -35,6 +36,61 @@ def get_current_prices():
         print(f"❌ Error al obtener precios: {e}")
         return {"BTC": 10000, "ETH": 3000, "DOG": 50}
 
+def get_price_history():
+    """Obtiene el historial de precios desde archivo JSON"""
+    try:
+        # Buscar el archivo en el directorio correcto
+        import sys
+        import os
+        
+        # Obtener el directorio actual del archivo
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        history_path = os.path.join(current_dir, "..", "crypto_price_history.json")
+        
+        if os.path.exists(history_path):
+            with open(history_path, 'r') as f:
+                return json.load(f)
+        else:
+            # Buscar en el directorio principal
+            main_dir = os.path.join(current_dir, "..", "..")
+            history_path = os.path.join(main_dir, "crypto_price_history.json")
+            if os.path.exists(history_path):
+                with open(history_path, 'r') as f:
+                    return json.load(f)
+            
+            # Si no existe, crear estructura inicial
+            history = {
+                "BTC": {"original": 10000, "current": 10000, "change_percent": 0.0},
+                "ETH": {"original": 3000, "current": 3000, "change_percent": 0.0},
+                "DOG": {"original": 50, "current": 50, "change_percent": 0.0}
+            }
+            return history
+    except Exception as e:
+        print(f"❌ Error al cargar historial de precios: {e}")
+        return {
+            "BTC": {"original": 10000, "current": 10000, "change_percent": 0.0},
+            "ETH": {"original": 3000, "current": 3000, "change_percent": 0.0},
+            "DOG": {"original": 50, "current": 50, "change_percent": 0.0}
+        }
+
+def get_current_prices_with_change():
+    """Obtiene precios actuales junto con porcentaje de cambio"""
+    current_prices = get_current_prices()
+    history = get_price_history()
+    
+    result = {}
+    for crypto in ["BTC", "ETH", "DOG"]:
+        current_price = current_prices.get(crypto, 0)
+        crypto_history = history.get(crypto, {})
+        
+        result[crypto] = {
+            'price': current_price,
+            'change_percent': crypto_history.get('change_percent', 0.0),
+            'original': crypto_history.get('original', current_price)
+        }
+    
+    return result
+
 def get_or_create_crypto_wallet(discord_id):
     supabase = get_supabase_client()
     try:
@@ -60,36 +116,6 @@ def get_or_create_crypto_wallet(discord_id):
     except Exception as e:
         print(f"❌ Error al obtener/crear wallet: {e}")
         return None
-
-def can_trade(discord_id, crypto):
-    wallet = get_or_create_crypto_wallet(discord_id)
-    if not wallet:
-        return True
-    
-    last_trade_column = f'last_{crypto.lower()}_trade'
-    last_trade = wallet.get(last_trade_column)
-    
-    if not last_trade:
-        return True
-    
-    try:
-        last_trade_time = datetime.fromisoformat(last_trade.replace('Z', '+00:00'))
-        now = datetime.now().astimezone()
-        hours_passed = (now - last_trade_time).total_seconds() / 3600
-        
-        return hours_passed >= 1
-    except:
-        return True
-
-def update_last_trade(discord_id, crypto):
-    supabase = get_supabase_client()
-    try:
-        last_trade_column = f'last_{crypto.lower()}_trade'
-        supabase.table('crypto_wallets').update({
-            last_trade_column: datetime.now().isoformat()
-        }).eq('discord_id', discord_id).execute()
-    except Exception as e:
-        print(f"❌ Error al actualizar último trade: {e}")
 
 def get_player_balance(discord_id):
     supabase = get_supabase_client()
@@ -140,7 +166,6 @@ def update_crypto_balance(discord_id, crypto, amount, total_earnings=None):
         if total_earnings is not None:
             if amount < 0:  # Venta (amount negativo)
                 current_withdrawn = wallet.get('total_withdrawn', 0)
-                # Convertir a ENTERO
                 update_data['total_withdrawn'] = int(current_withdrawn + total_earnings)
         
         supabase.table('crypto_wallets').update(update_data).eq('discord_id', discord_id).execute()
@@ -149,7 +174,7 @@ def update_crypto_balance(discord_id, crypto, amount, total_earnings=None):
         print(f"❌ Error al actualizar balance de cripto: {e}")
         return False
 
-# ============ COMANDO ============
+# ============ COMANDO MEJORADO ============
 def setup_command(crypto_group, cog):
     @crypto_group.command(name="sell", description="Vender criptomonedas")
     @app_commands.describe(
@@ -172,28 +197,26 @@ def setup_command(crypto_group, cog):
         
         crypto_symbol = moneda.upper()
         
-        # Colores para los embeds
-        colors = {
-            "BTC": 0xF7931A,
-            "ETH": 0x627EEA,
-            "DOG": 0xF2A900
+        # Configuraciones mejoradas
+        configs = {
+            "BTC": {"name": "BitCord", "emoji": "₿", "color": 0xF7931A, "icon": "https://cryptologos.cc/logos/bitcoin-btc-logo.png"},
+            "ETH": {"name": "Etherium", "emoji": "Ξ", "color": 0x627EEA, "icon": "https://cryptologos.cc/logos/ethereum-eth-logo.png"},
+            "DOG": {"name": "DoggoCoin", "emoji": "🐕", "color": 0xF2A900, "icon": "https://cryptologos.cc/logos/dogecoin-doge-logo.png"}
         }
         
-        if crypto_symbol not in ["BTC", "ETH", "DOG"]:
+        if crypto_symbol not in configs:
             await interaction.followup.send("❌ Criptomoneda no válida", ephemeral=True)
             return
         
-        # Verificar cooldown
-        if not can_trade(str(interaction.user.id), crypto_symbol):
-            await interaction.followup.send(
-                f"⏰ Debes esperar 1 hora entre transacciones de {crypto_symbol}",
-                ephemeral=True
-            )
-            return
+        config = configs[crypto_symbol]
         
-        # Obtener precios y wallet
-        current_prices = get_current_prices()
-        current_price = current_prices.get(crypto_symbol, 0)
+        # Obtener precios con cambio porcentual
+        prices_data = get_current_prices_with_change()
+        crypto_data = prices_data.get(crypto_symbol, {})
+        current_price = crypto_data.get('price', 0)
+        market_change_percent = crypto_data.get('change_percent', 0.0)
+        original_price = crypto_data.get('original', current_price)
+        
         wallet = get_or_create_crypto_wallet(str(interaction.user.id))
         
         if wallet is None:
@@ -209,14 +232,32 @@ def setup_command(crypto_group, cog):
         current_balance = wallet.get(crypto_column, 0.0)
         
         if current_balance < cantidad:
-            await interaction.followup.send(
-                f"❌ No tienes suficiente {crypto_symbol}. Tienes {current_balance:.4f}, intentas vender {cantidad:.4f}",
-                ephemeral=True
+            embed = discord.Embed(
+                title="❌ Saldo Insuficiente",
+                description=f"No tienes suficiente {config['name']} para vender.",
+                color=0xFF0000
             )
+            embed.add_field(name=f"💰 Saldo {crypto_symbol}", value=f"{current_balance:.4f}", inline=True)
+            embed.add_field(name="📤 Intentas vender", value=f"{cantidad:.4f}", inline=True)
+            embed.add_field(name="📉 Faltante", value=f"{cantidad - current_balance:.4f}", inline=True)
+            embed.set_footer(text=f"Compra más {crypto_symbol} con /crypto buy")
+            await interaction.followup.send(embed=embed, ephemeral=True)
             return
         
-        # Calcular ganancias totales (ENTERAS)
+        # Calcular ganancias totales
         total_earnings = int(cantidad * current_price)
+        
+        # Calcular precio promedio de compra y ganancias
+        invested = wallet.get('total_invested', 0)
+        total_crypto = sum([
+            wallet.get('btc_balance', 0.0),
+            wallet.get('eth_balance', 0.0),
+            wallet.get('dog_balance', 0.0)
+        ]) + cantidad
+        
+        avg_buy_price = invested / total_crypto if total_crypto > 0 else current_price
+        profit = total_earnings - (cantidad * avg_buy_price)
+        profit_percent = (profit / (cantidad * avg_buy_price) * 100) if (cantidad * avg_buy_price) > 0 else 0
         
         # Realizar venta
         try:
@@ -224,65 +265,76 @@ def setup_command(crypto_group, cog):
             if not update_player_balance(str(interaction.user.id), total_earnings):
                 raise Exception("Error actualizando balance de monedas")
             
-            # Actualizar wallet de cripto (cantidad negativa para restar)
+            # Actualizar wallet de cripto
             if not update_crypto_balance(str(interaction.user.id), crypto_symbol, -cantidad, total_earnings):
                 raise Exception("Error actualizando balance de cripto")
             
-            update_last_trade(str(interaction.user.id), crypto_symbol)
+            # Obtener nuevos balances
+            new_player_balance = get_player_balance(str(interaction.user.id))
+            new_wallet = get_or_create_crypto_wallet(str(interaction.user.id))
+            new_crypto_balance = new_wallet.get(crypto_column, 0.0) if new_wallet else 0.0
             
-            # Calcular ganancias/pérdidas
-            player_balance = get_player_balance(str(interaction.user.id))
-            invested = wallet.get('total_invested', 0)
-            withdrawn = wallet.get('total_withdrawn', 0)
+            # Crear embed mejorado
+            embed_color = 0x00FF00 if profit_percent >= 0 else 0xFF0000
+            profit_emoji = "📈" if profit_percent >= 0 else "📉"
+            market_change_emoji = "📈" if market_change_percent >= 0 else "📉"
             
-            # Calcular precio promedio de compra
-            total_crypto = sum([
-                wallet.get('btc_balance', 0.0),
-                wallet.get('eth_balance', 0.0),
-                wallet.get('dog_balance', 0.0)
-            ]) + cantidad  # Sumamos la cantidad vendida porque ya la restamos
-            
-            avg_buy_price = invested / total_crypto if total_crypto > 0 else current_price
-            profit_percent = ((current_price - avg_buy_price) / avg_buy_price * 100) if avg_buy_price > 0 else 0
-            
-            # Crear embed de respuesta
             embed = discord.Embed(
-                title="✅ Venta Exitosa",
-                description=f"Has vendido **{cantidad:.4f} {crypto_symbol}**",
-                color=0x00FF00 if profit_percent >= 0 else 0xFF0000
+                title=f"{profit_emoji} VENTA EXITOSA | {config['emoji']} {config['name']}",
+                description=f"Transacción completada exitosamente",
+                color=embed_color
             )
             
+            # Añadir thumbnail con icono de la criptomoneda
+            embed.set_thumbnail(url=config["icon"])
+            
+            # Información de mercado
             embed.add_field(
-                name="💸 Precio Unitario",
-                value=f"{current_price:,} monedas",
-                inline=True
+                name="📊 Estado del Mercado",
+                value=f"**Precio Actual:** {current_price:,} monedas\n"
+                      f"**Cambio del Mercado:** {market_change_percent:+.2f}% {market_change_emoji}\n"
+                      f"**Precio Original:** {original_price:,} monedas",
+                inline=False
             )
             
+            # Información de la transacción
             embed.add_field(
-                name="💰 Ganancia Total",
-                value=f"{total_earnings:,} monedas",
-                inline=True
+                name="📊 Detalles de la Venta",
+                value=f"**Cantidad:** {cantidad:.4f} {crypto_symbol}\n"
+                      f"**Precio Unitario:** {current_price:,} monedas\n"
+                      f"**Total Obtenido:** {total_earnings:,} monedas",
+                inline=False
             )
             
+            # Estadísticas de ganancias
             embed.add_field(
-                name="📈 Rendimiento",
-                value=f"{profit_percent:+.1f}% {'📈' if profit_percent >= 0 else '📉'}",
-                inline=True
+                name="💰 Rendimiento Personal",
+                value=f"**Ganancia/Pérdida:** {profit:+,.0f} monedas\n"
+                      f"**Porcentaje:** {profit_percent:+.1f}%\n"
+                      f"**Precio Promedio:** {avg_buy_price:,.0f} monedas",
+                inline=False
             )
             
+            # Balances actualizados
             embed.add_field(
-                name="💳 Nuevo Balance",
-                value=f"{player_balance:,} monedas",
-                inline=True
+                name="💳 Nuevos Balances",
+                value=f"**Monedas:** {new_player_balance:,}\n"
+                      f"**{crypto_symbol}:** {new_crypto_balance:.4f}",
+                inline=False
             )
             
-            embed.set_footer(text="Puedes comprar en 1 hora")
+            # Timestamp y footer
+            embed.timestamp = datetime.now()
+            embed.set_footer(text=f"Transacción ID: {interaction.id[:8]}", icon_url=interaction.user.display_avatar.url)
             
             await interaction.followup.send(embed=embed, ephemeral=True)
             
         except Exception as e:
             print(f"❌ Error en venta: {e}")
-            await interaction.followup.send(
-                "❌ Error al procesar la venta. Intenta nuevamente.",
-                ephemeral=True
+            embed = discord.Embed(
+                title="❌ Error en la Transacción",
+                description="Ocurrió un error al procesar tu venta.",
+                color=0xFF0000
             )
+            embed.add_field(name="🔧 Solución", value="Intenta nuevamente en unos momentos.", inline=False)
+            await interaction.followup.send(embed=embed, ephemeral=True)

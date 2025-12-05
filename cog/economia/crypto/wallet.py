@@ -4,6 +4,7 @@ from typing import Optional
 import os
 from datetime import datetime, timedelta
 from supabase import create_client
+import json
 
 # ============ FUNCIONES INDEPENDIENTES ============
 def get_supabase_client():
@@ -36,6 +37,61 @@ def get_current_prices():
         print(f"❌ Error al obtener precios: {e}")
         return {"BTC": 10000, "ETH": 3000, "DOG": 50}
 
+def get_price_history():
+    """Obtiene el historial de precios desde archivo JSON"""
+    try:
+        # Buscar el archivo en el directorio correcto
+        import sys
+        import os
+        
+        # Obtener el directorio actual del archivo
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        history_path = os.path.join(current_dir, "..", "crypto_price_history.json")
+        
+        if os.path.exists(history_path):
+            with open(history_path, 'r') as f:
+                return json.load(f)
+        else:
+            # Buscar en el directorio principal
+            main_dir = os.path.join(current_dir, "..", "..")
+            history_path = os.path.join(main_dir, "crypto_price_history.json")
+            if os.path.exists(history_path):
+                with open(history_path, 'r') as f:
+                    return json.load(f)
+            
+            # Si no existe, crear estructura inicial
+            history = {
+                "BTC": {"original": 10000, "current": 10000, "change_percent": 0.0},
+                "ETH": {"original": 3000, "current": 3000, "change_percent": 0.0},
+                "DOG": {"original": 50, "current": 50, "change_percent": 0.0}
+            }
+            return history
+    except Exception as e:
+        print(f"❌ Error al cargar historial de precios: {e}")
+        return {
+            "BTC": {"original": 10000, "current": 10000, "change_percent": 0.0},
+            "ETH": {"original": 3000, "current": 3000, "change_percent": 0.0},
+            "DOG": {"original": 50, "current": 50, "change_percent": 0.0}
+        }
+
+def get_current_prices_with_change():
+    """Obtiene precios actuales junto con porcentaje de cambio"""
+    current_prices = get_current_prices()
+    history = get_price_history()
+    
+    result = {}
+    for crypto in ["BTC", "ETH", "DOG"]:
+        current_price = current_prices.get(crypto, 0)
+        crypto_history = history.get(crypto, {})
+        
+        result[crypto] = {
+            'price': current_price,
+            'change_percent': crypto_history.get('change_percent', 0.0),
+            'original': crypto_history.get('original', current_price)
+        }
+    
+    return result
+
 def get_or_create_crypto_wallet(discord_id):
     supabase = get_supabase_client()
     try:
@@ -62,7 +118,25 @@ def get_or_create_crypto_wallet(discord_id):
         print(f"❌ Error al obtener/crear wallet: {e}")
         return None
 
-# ============ COMANDO ============
+def get_player_balance(discord_id):
+    supabase = get_supabase_client()
+    try:
+        response = supabase.table('players').select('balance').eq('discord_id', discord_id).execute()
+        
+        if response.data:
+            return response.data[0]['balance']
+        else:
+            supabase.table('players').insert({
+                'discord_id': discord_id,
+                'username': f'Usuario_{discord_id}',
+                'balance': 500
+            }).execute()
+            return 500
+    except Exception as e:
+        print(f"❌ Error al obtener balance: {e}")
+        return 0
+
+# ============ COMANDO MEJORADO ============
 def setup_command(crypto_group, cog):
     @crypto_group.command(name="wallet", description="Ver tu wallet de criptomonedas o la de otro usuario")
     @app_commands.describe(usuario="Usuario para ver su wallet (opcional)")
@@ -77,112 +151,160 @@ def setup_command(crypto_group, cog):
             await interaction.followup.send("❌ Error al cargar la wallet", ephemeral=is_self)
             return
         
-        current_prices = get_current_prices()
+        current_prices_data = get_current_prices_with_change()
+        player_balance = get_player_balance(str(target_user.id))
         
-        # Calcular valores (enteros)
-        btc_value = int(wallet.get('btc_balance', 0.0) * current_prices["BTC"])
-        eth_value = int(wallet.get('eth_balance', 0.0) * current_prices["ETH"])
-        dog_value = int(wallet.get('dog_balance', 0.0) * current_prices["DOG"])
-        total_value = btc_value + eth_value + dog_value
+        # Configuraciones de criptomonedas
+        cryptos = {
+            "BTC": {"name": "BitCord", "emoji": "₿", "color": 0xF7931A, "icon": "https://cryptologos.cc/logos/bitcoin-btc-logo.png"},
+            "ETH": {"name": "Etherium", "emoji": "Ξ", "color": 0x627EEA, "icon": "https://cryptologos.cc/logos/ethereum-eth-logo.png"},
+            "DOG": {"name": "DoggoCoin", "emoji": "🐕", "color": 0xF2A900, "icon": "https://cryptologos.cc/logos/dogecoin-doge-logo.png"}
+        }
         
-        # Calcular ganancias
-        invested = wallet.get('total_invested', 0.0)
-        withdrawn = wallet.get('total_withdrawn', 0.0)
+        # Calcular valores
+        total_crypto_value = 0
+        crypto_details = []
+        market_changes = []
+        
+        for symbol, config in cryptos.items():
+            balance = wallet.get(f'{symbol.lower()}_balance', 0.0)
+            price_data = current_prices_data.get(symbol, {})
+            price = price_data.get('price', 0)
+            change_percent = price_data.get('change_percent', 0.0)
+            original_price = price_data.get('original', price)
+            
+            value = balance * price
+            total_crypto_value += value
+            
+            if balance > 0:
+                crypto_details.append({
+                    "symbol": symbol,
+                    "balance": balance,
+                    "price": price,
+                    "value": value,
+                    "change_percent": change_percent,
+                    "original_price": original_price,
+                    "config": config
+                })
+            
+            # Guardar cambios de mercado para resumen
+            market_changes.append({
+                "symbol": symbol,
+                "change_percent": change_percent,
+                "config": config
+            })
+        
+        # Calcular estadísticas
+        invested = wallet.get('total_invested', 0)
+        withdrawn = wallet.get('total_withdrawn', 0)
         net_invested = invested - withdrawn
-        profit = total_value - net_invested if net_invested > 0 else 0
+        profit = total_crypto_value - net_invested
         profit_percent = (profit / net_invested * 100) if net_invested > 0 else 0
         
-        # Colores y emojis
-        colors = {
-            "BTC": 0xF7931A,
-            "ETH": 0x627EEA,
-            "DOG": 0xF2A900
-        }
-        
-        emojis = {
-            "BTC": "₿",
-            "ETH": "Ξ",
-            "DOG": "🐕"
-        }
-        
-        # Determinar color principal según mayor valor
-        if btc_value >= eth_value and btc_value >= dog_value:
-            main_color = colors["BTC"]
-        elif eth_value >= dog_value:
-            main_color = colors["ETH"]
+        # Determinar color principal
+        if profit_percent >= 0:
+            main_color = 0x00FF00
         else:
-            main_color = colors["DOG"]
+            main_color = 0xFF0000
         
+        # Crear embed principal
         embed = discord.Embed(
-            title=f"💰 Wallet de Cripto {'(Tú)' if is_self else f'de {target_user.display_name}'}",
+            title=f"💰 CARTERA DE CRIPTOMONEDAS",
+            description=f"**Usuario:** {target_user.mention}\n"
+                       f"**ID:** `{target_user.id}`",
             color=main_color
         )
         
-        # Añadir balances con emojis
-        wallet_text = []
-        btc_balance = wallet.get('btc_balance', 0.0)
-        eth_balance = wallet.get('eth_balance', 0.0)
-        dog_balance = wallet.get('dog_balance', 0.0)
+        # Añadir avatar del usuario
+        embed.set_thumbnail(url=target_user.display_avatar.url)
         
-        if btc_balance > 0:
-            wallet_text.append(f"{emojis['BTC']} **{btc_balance:.4f} BTC** ({btc_value:,} monedas)")
-        if eth_balance > 0:
-            wallet_text.append(f"{emojis['ETH']} **{eth_balance:.4f} ETH** ({eth_value:,} monedas)")
-        if dog_balance > 0:
-            wallet_text.append(f"{emojis['DOG']} **{dog_balance:.2f} DOG** ({dog_value:,} monedas)")
+        # Sección 1: Resumen de Balances
+        embed.add_field(
+            name="📊 RESUMEN FINANCIERO",
+            value=f"**💵 Monedas Disponibles:** {player_balance:,}\n"
+                  f"**💼 Valor Total en Crypto:** {total_crypto_value:,.0f}\n"
+                  f"**💎 Patrimonio Total:** {player_balance + total_crypto_value:,.0f}",
+            inline=False
+        )
         
-        if wallet_text:
+        # Sección 2: Rendimiento Personal
+        if invested > 0 or withdrawn > 0:
             embed.add_field(
-                name="📊 Balance de Cripto",
-                value="\n".join(wallet_text) or "Vacío",
+                name="📈 RENDIMIENTO PERSONAL",
+                value=f"**📥 Total Invertido:** {invested:,}\n"
+                      f"**📤 Total Retirado:** {withdrawn:,}\n"
+                      f"**💰 Ganancia/Resultado:** {profit:+,.0f} ({profit_percent:+.1f}%)",
+                inline=False
+            )
+        
+        # Sección 3: Cambios del Mercado
+        market_summary = []
+        for change_data in market_changes:
+            symbol = change_data["symbol"]
+            change = change_data["change_percent"]
+            emoji = "📈" if change >= 0 else "📉"
+            market_summary.append(f"{change_data['config']['emoji']} {symbol}: {change:+.2f}% {emoji}")
+        
+        if market_summary:
+            embed.add_field(
+                name="📊 CAMBIOS DEL MERCADO",
+                value=" | ".join(market_summary),
+                inline=False
+            )
+        
+        # Sección 4: Detalles por Criptomoneda
+        if crypto_details:
+            crypto_text = []
+            for detail in crypto_details:
+                config = detail["config"]
+                change_emoji = "📈" if detail["change_percent"] >= 0 else "📉"
+                crypto_text.append(
+                    f"{config['emoji']} **{config['name']} ({detail['symbol']})**\n"
+                    f"   ├ Balance: {detail['balance']:.4f}\n"
+                    f"   ├ Precio Actual: {detail['price']:,}\n"
+                    f"   ├ Cambio: {detail['change_percent']:+.2f}% {change_emoji}\n"
+                    f"   └ Valor: {detail['value']:,.0f}"
+                )
+            
+            embed.add_field(
+                name="🔗 CRIPTOMONEDAS DETALLADAS",
+                value="\n\n".join(crypto_text),
                 inline=False
             )
         else:
             embed.add_field(
-                name="📊 Balance de Cripto",
-                value="💰 Wallet vacía",
+                name="🔗 CRIPTOMONEDAS",
+                value="🚫 No tienes criptomonedas en tu wallet\n"
+                      "Usa `/crypto buy` para comenzar a invertir",
                 inline=False
             )
         
-        # Estadísticas
-        stats = [
-            f"💰 **Valor Total:** {total_value:,} monedas",
-            f"📈 **Ganancias:** {profit:+,.0f} monedas ({profit_percent:+.1f}%)" if net_invested > 0 else "📈 **Ganancias:** --",
-            f"📥 **Total Invertido:** {invested:,.0f} monedas" if invested > 0 else "",
-            f"📤 **Total Retirado:** {withdrawn:,.0f} monedas" if withdrawn > 0 else ""
-        ]
-        
-        embed.add_field(
-            name="📈 Estadísticas",
-            value="\n".join([s for s in stats if s]),
-            inline=False
-        )
-        
-        # Cooldowns
-        cooldown_info = []
-        now = datetime.now().astimezone()
-        
-        for crypto in ["BTC", "ETH", "DOG"]:
-            last_trade_str = wallet.get(f'last_{crypto.lower()}_trade')
+        # Sección 5: Consejos basados en el mercado
+        tips = []
+        if market_changes:
+            best_performer = max(market_changes, key=lambda x: x["change_percent"])
+            worst_performer = min(market_changes, key=lambda x: x["change_percent"])
             
-            if last_trade_str:
-                try:
-                    last_trade = datetime.fromisoformat(last_trade_str.replace('Z', '+00:00'))
-                    next_trade = last_trade + timedelta(hours=1)
-                    if now < next_trade:
-                        minutes_left = int((next_trade - now).total_seconds() / 60)
-                        cooldown_info.append(f"{crypto}: {minutes_left}m")
-                except:
-                    pass
+            if best_performer["change_percent"] > 5:
+                tips.append(f"💡 **Oportunidad:** {best_performer['config']['emoji']} {best_performer['symbol']} está subiendo fuerte (+{best_performer['change_percent']:.1f}%)")
+            if worst_performer["change_percent"] < -5:
+                tips.append(f"⚠️ **Precaución:** {worst_performer['config']['emoji']} {worst_performer['symbol']} está bajando ({worst_performer['change_percent']:.1f}%)")
         
-        if cooldown_info:
+        tips.append("⏰ **Recordatorio:** Los precios se actualizan cada 5 minutos")
+        tips.append("📊 **Consejo:** Diversifica tu inversión entre diferentes criptomonedas")
+        
+        if tips:
             embed.add_field(
-                name="⏰ Cooldowns Activos",
-                value=", ".join(cooldown_info),
+                name="💡 INFORMACIÓN ÚTIL",
+                value="\n".join(tips),
                 inline=False
             )
         
-        embed.set_thumbnail(url=target_user.display_avatar.url)
-        embed.set_footer(text="Usa /crypto buy/sell para operar")
+        # Footer con timestamp
+        embed.timestamp = datetime.now()
+        embed.set_footer(
+            text=f"Wallet ID: {target_user.id[:8]} • Última actualización",
+            icon_url="https://cdn-icons-png.flaticon.com/512/1828/1828843.png"
+        )
         
         await interaction.followup.send(embed=embed, ephemeral=is_self)
