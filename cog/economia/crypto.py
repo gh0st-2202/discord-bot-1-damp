@@ -40,27 +40,27 @@ CRYPTO_CONFIG = {
         "name": "BitCord",
         "emoji": "₿",
         "base_price": 10000,
-        "volatility": (0.98, 1.02),
-        "min_price": 5000,
-        "max_price": 20000,
+        "volatility": (0.98, 1.04),
+        "min_price": 1,
+        "max_price": 100000000,
         "color": 0xF7931A
     },
     "ETH": {
         "name": "Etherium", 
         "emoji": "Ξ",
         "base_price": 3000,
-        "volatility": (0.95, 1.05),
-        "min_price": 1500,
-        "max_price": 6000,
+        "volatility": (0.95, 1.10),
+        "min_price": 1,
+        "max_price": 100000000,
         "color": 0x627EEA
     },
     "DOG": {
         "name": "DoggoCoin",
         "emoji": "🐕",
         "base_price": 50,
-        "volatility": (0.85, 1.15),
-        "min_price": 10,
-        "max_price": 200,
+        "volatility": (0.85, 1.20),
+        "min_price": 1,
+        "max_price": 100000000,
         "color": 0xF2A900
     }
 }
