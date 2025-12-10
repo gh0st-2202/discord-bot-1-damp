@@ -5,6 +5,7 @@ import time
 import random
 import asyncio
 import os
+import json
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -24,88 +25,36 @@ REWARD_1ST = 1000
 REWARD_2ND = 500
 REWARD_BASE = 100
 
-# Lista de palabras para el juego
-WORD_LIST = [
-    "abaco", "abajo", "abeja", "abono", "abril", "abrir", "abuso", "acabo", "acaso", "acero", 
-    "acido", "actor", "acusa", "adios", "adobo", "agudo", "aguja", "ahogo", "ahora", "alaba", 
-    "aldea", "algun", "altar", "amaba", "amada", "amado", "amiga", "amigo", "ancho", "andar", 
-    "angel", "animo", "antes", "apoyo", "apuro", "arena", "arbol", "ardor", "atada", "armas", 
-    "aroma", "arroz", "asado", "ataca", "atado", "atras", "audio", "autor", "avena", "avisa", 
-    "aviso", "ayuda", "ayuno", "anoso", "baila", "baile", "bajar", "balas", "balde", "banco", 
-    "banda", "barba", "barca", "barco", "barra", "barro", "basta", "batir", "bazar", "beber", 
-    "bella", "bello", "besar", "bicho", "blusa", "bocas", "bolsa", "bolso", "bomba", "borde", 
-    "botas", "boton", "boxeo", "bravo", "brazo", "breve", "brisa", "broma", "brote", "bruja", 
-    "brujo", "bruto", "bueno", "bulto", "buque", "burla", "burro", "busca", "busto", "caber", 
-    "cable", "cabra", "cacao", "caida", "caido", "caldo", "calle", "calma", "calor", "calvo", 
-    "campo", "canal", "canoa", "canta", "cante", "canto", "capaz", "carga", "cargo", "carne", 
-    "carpa", "carro", "carta", "casar", "casas", "casco", "causa", "cazar", "cejas", "celda", 
-    "cenar", "cerdo", "cerro", "cesar", "cesta", "cetro", "chica", "chico", "chile", "china", 
-    "ciclo", "cielo", "cifra", "cinco", "cinta", "circo", "citar", "civil", "clara", "claro", 
-    "clase", "clave", "clavo", "clima", "cobra", "cobre", "coche", "color", "comer", "copia", 
-    "coral", "corre", "corta", "corte", "corto", "cosas", "coser", "costa", "crear", "crece", 
-    "creer", "crema", "crian", "criba", "cruce", "crudo", "cruel", "cruza", "cuero", "cueva", 
-    "cuida", "culpa", "culto", "cuota", "curar", "curso", "curva", "danza", "deber", "debil", 
-    "decir", "dejar", "densa", "denso", "desde", "desea", "deseo", "deuda", "diana", "dicen", 
-    "dicha", "dicho", "dieta", "digna", "digno", "diosa", "disco", "dobla", "doble", "dolor", 
-    "donde", "dorso", "dosis", "drama", "ducha", "dudar", "duena", "dueno", "dulce", "echar", 
-    "elige", "ellas", "ellos", "emite", "enano", "enero", "enojo", "entra", "entre", "envio", 
-    "error", "espia", "estar", "estos", "estoy", "etapa", "evita", "exito", "facil", "falda", 
-    "falla", "fallo", "falsa", "falta", "fango", "farol", "farsa", "fatal", "fauna", "favor", 
-    "fecha", "feliz", "feria", "firma", "firme", "flaco", "flojo", "flora", "flota", "fondo", 
-    "forma", "freno", "fresa", "frito", "fruta", "fruto", "fuego", "fuera", "fugaz", "fumar", 
-    "furia", "gafas", "gallo", "ganar", "garra", "garza", "gasta", "gasto", "gente", "gesto", 
-    "girar", "globo", "golpe", "gordo", "gorra", "gozar", "grado", "grano", "grasa", "grave", 
-    "grito", "grupo", "guapa", "guapo", "guiar", "gusta", "gusto", "haber", "habil", "habla", 
-    "hacer", "hacha", "hacia", "halla", "hasta", "hecho", "herir", "hielo", "hiena", "hogar", 
-    "hondo", "hongo", "honor", "hotel", "huevo", "huida", "humor", "ideal", "igual", "islas", 
-    "jamon", "jarra", "jaula", "joven", "juega", "juego", "jueza", "jugar", "junio", "junta", 
-    "junto", "justo", "labio", "labor", "ladra", "leche", "legal", "lejos", "lento", "leona", 
-    "letra", "libra", "libre", "libro", "lider", "ligar", "limon", "linda", "lindo", "linea", 
-    "listo", "llama", "llave", "llega", "llena", "lleva", "llora", "local", "logra", "logro", 
-    "lucha", "lucir", "luego", "lugar", "lunes", "madre", "magia", "manda", "mango", "mania", 
-    "manta", "marca", "marco", "marea", "marzo", "matar", "mayor", "media", "medio", "mejor", 
-    "menor", "menos", "menta", "mente", "mesas", "metal", "meter", "metro", "miedo", "milla", 
-    "mirar", "mismo", "mitad", "mojar", "molde", "monja", "monta", "monte", "moral", "morir", 
-    "mosca", "motor", "mover", "mucho", "muela", "muere", "mueve", "mujer", "multa", "mundo", 
-    "museo", "musgo", "nacer", "nadar", "nariz", "necio", "negar", "negro", "nieta", "nieto", 
-    "nieve", "nivel", "noble", "noche", "nopal", "norte", "notar", "novia", "novio", "nubes", 
-    "nueve", "nuevo", "nunca", "obras", "ocaso", "ocupa", "odiar", "oeste", "oliva", "olivo", 
-    "opera", "opina", "orden", "oreja", "osado", "otoño", "oveja", "pacto", "padre", "pagar", 
-    "palma", "panda", "panza", "papel", "parar", "pared", "parte", "pasar", "paseo", "pasta", 
-    "pasto", "patio", "pausa", "pecar", "pecho", "pedir", "pegar", "peine", "pelar", "pelea", 
-    "penal", "perla", "perro", "pesar", "pesca", "peste", "piano", "picar", "pieza", "pilar", 
-    "pinta", "pinto", "pista", "pizza", "placa", "plano", "plata", "plato", "playa", "plaza", 
-    "plazo", "pleno", "plomo", "pluma", "pobre", "poder", "poema", "poeta", "pollo", "polvo", 
-    "poner", "porta", "posee", "poste", "potro", "prado", "presa", "preso", "prima", "primo", 
-    "prisa", "prosa", "pudor", "puede", "pulga", "pulpo", "pulso", "punta", "punto", "quedo", 
-    "queja", "quema", "queso", "quien", "quita", "radio", "raido", "rampa", "rango", "rapto", 
-    "rasca", "raton", "rayas", "razon", "recto", "redes", "regla", "reina", "reino", "reloj", 
-    "renta", "resto", "reyes", "rezar", "riego", "rigor", "rival", "rison", "ritmo", "robar", 
-    "roble", "robot", "rodeo", "rogar", "rollo", "rompe", "ronco", "ronda", "rosas", "abeto", 
-    "rubia", "rubio", "rueda", "ruego", "rugir", "ruido", "ruina", "rumba", "rumbo", "rural", 
-    "saber", "sabio", "sabor", "sacar", "saldo", "salir", "salon", "salsa", "salta", "salto", 
-    "salud", "salva", "salvo", "sanar", "santa", "santo", "sauce", "secar", "sello", "selva", 
-    "senda", "senil", "seria", "serie", "serio", "sesgo", "senal", "senas", "senor", "short", 
-    "sidra", "siete", "siglo", "signo", "sigue", "silla", "sirve", "sismo", "sitio", "sobra", 
-    "sobre", "socio", "solar", "soler", "sonar", "sopla", "sordo", "sonar", "suave", "subir", 
-    "sucia", "sucio", "sudar", "suela", "suelo", "suena", "sueno", "suena", "suele", "sueño", 
-    "sufre", "sumar", "super", "surge", "susto", "tabla", "tacto", "talla", "tango", "tanto", 
-    "tapar", "tarde", "tardo", "tarea", "tarro", "tarta", "tazas", "techo", "tecla", "tedio", 
-    "tejer", "temer", "temor", "tenaz", "tener", "tenis", "tenor", "terco", "texto", "tiene", 
-    "tigre", "tinta", "tinte", "tirar", "tocar", "tomar", "tonto", "toque", "tordo", "torpe", 
-    "torre", "torso", "toser", "total", "traer", "trago", "traje", "trama", "trata", "trato", 
-    "trazo", "tribu", "trigo", "trono", "tropa", "trote", "trozo", "truco", "tumba", "tumor", 
-    "tunel", "turno", "tutor", "unico", "unido", "union", "usaba", "usada", "usado", "usted", 
-    "usual", "utero", "vacas", "vacia", "vacio", "vagar", "valer", "valle", "valor", "vamos", 
-    "vapor", "vasto", "veces", "vejez", "velar", "veloz", "vemos", "vende", "vengo", "venir", 
-    "venta", "veraz", "verbo", "verde", "verso", "viaja", "viaje", "vicio", "video", "vieja", 
-    "viejo", "viene", "vigia", "vigor", "villa", "vimos", "virus", "visor", "vista", "viste", 
-    "visto", "viuda", "viudo", "vivir", "vocal", "volar", "votar", "vuela", "vuelo", "yendo", 
-    "yerba", "yogur", "zarza", "zorro", # 754
-    
-    # Ampliación extra (palabras probadas no existentes)
-    "apodo", "riada", "balsa", "aguas", "ahoga", "iglus", "aereo", "braga", "tanga"
-]
+# Cargar listas de palabras desde archivos JSON
+def load_word_lists():
+    """Carga las listas de palabras objetivo y permitidas desde archivos JSON"""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    try:
+        # Cargar palabras objetivo
+        with open(current_dir + '/wordless/objetivo-5-letras.json', 'r', encoding='utf-8') as f:
+            target_words = json.load(f)
+        
+        # Cargar palabras permitidas
+        with open(current_dir + '/wordless/permitidas-5-letras.json', 'r', encoding='utf-8') as f:
+            allowed_words = json.load(f)
+        
+        target_words = [word.lower().strip() for word in target_words]
+        allowed_words = [word.lower().strip() for word in allowed_words]
+        
+        print(f"✅ Cargadas {len(target_words)} palabras objetivo y {len(allowed_words)} palabras permitidas")
+        return target_words, allowed_words
+    except FileNotFoundError as e:
+        print(f"❌ Error: No se encontró el archivo {e.filename}")
+        # Listas de respaldo en caso de error
+        backup_target = ["casa", "perro", "gato", "mesa", "silla", "arbol", "flor", "libro", "lapiz", "reloj"]
+        backup_allowed = backup_target + ["cielo", "tierra", "agua", "fuego", "viento"]
+        return backup_target, backup_allowed
+    except json.JSONDecodeError as e:
+        print(f"❌ Error al parsear JSON: {e}")
+        return [], []
+
+# Cargar las listas de palabras al inicio
+TARGET_WORDS, ALLOWED_WORDS = load_word_lists()
 
 # Funciones de base de datos locales
 async def get_player(discord_id, username):
@@ -183,8 +132,11 @@ async def update_global_leaderboard(bot):
 
 # Funciones del juego Wordless
 def choose_word():
-    """Elige una palabra aleatoria de la lista"""
-    return random.choice(WORD_LIST)
+    """Elige una palabra objetivo aleatoria de la lista"""
+    if not TARGET_WORDS:
+        print("⚠️ Lista de palabras objetivo vacía, usando palabra por defecto")
+        return "casa"
+    return random.choice(TARGET_WORDS).lower()
 
 def evaluate_guess(guess, secret):
     """Evalúa un intento y devuelve el resultado con emojis"""
@@ -210,6 +162,10 @@ def evaluate_guess(guess, secret):
                 secret_list[j] = None
 
     return "".join(result)
+
+def is_valid_word(word):
+    """Verifica si una palabra está en la lista de palabras permitidas"""
+    return word.lower() in ALLOWED_WORDS
 
 # Clases del juego
 class WordlessGame:
@@ -289,6 +245,14 @@ class WordlessCog(commands.Cog):
             )
             return
 
+        # Verificar que hay palabras objetivo disponibles
+        if not TARGET_WORDS:
+            await interaction.response.send_message(
+                "❌ Error: No hay palabras objetivo disponibles. Contacta con un administrador.",
+                ephemeral=True
+            )
+            return
+
         # Crear canal privado
         guild = interaction.guild
         overwrites = {
@@ -318,6 +282,9 @@ class WordlessCog(commands.Cog):
         secret_word = choose_word()
         game = WordlessGame(user_id, channel, secret_word)
         self.games[user_id] = game
+
+        print(f"🎯 Nueva partida de Wordless para {interaction.user.name} (ID: {user_id})")
+        print(f"🔑 Palabra objetivo: {secret_word}")
 
         # Enviar mensaje de bienvenida al canal privado
         view = ForfeitButton(self, user_id)
@@ -384,8 +351,8 @@ class WordlessCog(commands.Cog):
             )
             return
         
-        # Verificar que la palabra esté en la lista de palabras válidas
-        if palabra not in WORD_LIST:
+        # Verificar que la palabra esté en la lista de palabras permitidas
+        if not is_valid_word(palabra):
             await interaction.response.send_message(
                 "❌ Esa palabra no existe en español o no es válida para el juego.",
                 ephemeral=True
