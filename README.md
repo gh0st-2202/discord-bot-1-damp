@@ -93,18 +93,22 @@ Clase-Bot/
 
 ### Diagrama de flujo de arranque
 
-```
-python main-bot.py
-        │
-        ├─► Flask (hilo daemon, puerto 8080)
-        │
-        └─► bot.run(TOKEN)
-                │
-                └─► on_ready()
-                        ├─► load_all()   → carga los Cogs de cog/
-                        ├─► tree.sync()  → registra slash commands en Discord
-                        └─► start_background_tasks()
-                                └─► update_crypto_prices_loop() (cada 1h)
+```mermaid
+flowchart TD
+    A([python main-bot.py]) --> B[Cargar variables .env]
+    B --> C[Inicializar cliente Supabase]
+    C --> D[Inicializar discord.py Bot]
+    D --> E[Hilo daemon: Flask :8080]
+    D --> F[bot.run TOKEN]
+    F --> G[[on_ready]]
+    G --> H[load_all: cargar Cogs]
+    G --> I[tree.sync: registrar slash commands]
+    G --> J[start_background_tasks]
+    J --> K([update_crypto_prices_loop cada 1h])
+
+    style A fill:#5865F2,color:#fff
+    style K fill:#3ECF8E,color:#fff
+    style G fill:#f0f0f0
 ```
 
 ---
@@ -232,28 +236,45 @@ Ejecuta este script completo en el **SQL Editor** de tu proyecto Supabase.
 
 ### Diagrama Entidad-Relación
 
-```
-┌─────────────────────────────┐        ┌──────────────────────────────────┐
-│           players           │        │          crypto_wallets           │
-├─────────────────────────────┤        ├──────────────────────────────────┤
-│ PK  discord_id    TEXT      │──────► │ PK  discord_id       TEXT        │
-│     username      TEXT      │  1:1   │     btc_balance       REAL       │
-│     balance       INTEGER   │        │     eth_balance       REAL       │
-│     daily_streak  INTEGER   │        │     dog_balance       REAL       │
-│     last_daily    TIMESTAMPTZ│       │     total_invested    REAL       │
-│     last_rob      INTEGER   │        │     total_withdrawn   REAL       │
-│     created_at    TIMESTAMPTZ│       │     last_*_trade      TIMESTAMPTZ│
-└─────────────────────────────┘        └──────────────────────────────────┘
+```mermaid
+erDiagram
+    players {
+        TEXT discord_id PK
+        TEXT username
+        INTEGER balance
+        INTEGER daily_streak
+        TIMESTAMPTZ last_daily
+        INTEGER last_rob
+        TIMESTAMPTZ created_at
+    }
 
-┌──────────────────────────────────┐   ┌──────────────────────────────────┐
-│          crypto_prices           │   │       crypto_current_prices      │
-├──────────────────────────────────┤   ├──────────────────────────────────┤
-│ PK  id           SERIAL          │   │ PK  crypto     TEXT              │
-│     timestamp    TIMESTAMPTZ     │   │     price      REAL              │
-│     btc_price    REAL            │   │     last_update TIMESTAMPTZ      │
-│     eth_price    REAL            │   └──────────────────────────────────┘
-│     dog_price    REAL            │
-└──────────────────────────────────┘
+    crypto_wallets {
+        TEXT discord_id PK, FK
+        REAL btc_balance
+        REAL eth_balance
+        REAL dog_balance
+        TIMESTAMPTZ last_btc_trade
+        TIMESTAMPTZ last_eth_trade
+        TIMESTAMPTZ last_dog_trade
+        REAL total_invested
+        REAL total_withdrawn
+    }
+
+    crypto_prices {
+        SERIAL id PK
+        TIMESTAMPTZ timestamp
+        REAL btc_price
+        REAL eth_price
+        REAL dog_price
+    }
+
+    crypto_current_prices {
+        TEXT crypto PK
+        REAL price
+        TIMESTAMPTZ last_update
+    }
+
+    players ||--|| crypto_wallets : "tiene"
 ```
 
 ### Script SQL de creación
@@ -657,4 +678,4 @@ El bot incluye un servidor Flask que responde en el puerto `8080`. Configura el 
 
 ---
 
-*Última actualización: 11 de diciembre de 2025 · Versión 5.1.0*
+*Última actualización: 1 de abril de 2026 · Versión 5.1.0*
