@@ -48,7 +48,7 @@ El bot sigue el patrón **Cog** de `discord.py`, que equivale a un patrón de **
 ├── 🔒 .env                     # Variables de entorno (no subir a Git)
 ├── 🙈 .gitignore
 └── 📁 cog/                     # Capa de extensiones (patrón Cog)
-    ├── 📁 commands/            # Comandos de uso general
+   ├── 📁 commands/            # Comandos de uso general
     │   ├── 🏓 ping.py          # /ping — latencia del bot
     │   ├── 📅 calendario.py    # Cog raíz del grupo /calendario
     │   ├── 📁 calendario/
