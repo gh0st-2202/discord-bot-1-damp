@@ -1,430 +1,660 @@
-# 🤖 Clase Bot v5 - Tu Asistente de Discord Inteligente
+# 🤖 Clase Bot — Discord Bot Multifunción
 
-**Un bot multifunción para gestión académica, economía virtual y entretenimiento**
+> Bot de Discord modular para gestión académica, economía virtual, trading de criptomonedas e inteligencia artificial, desarrollado con `discord.py` y `Supabase`.
 
----
-
-## 📋 **Índice**
-- [🚀 Características Principales](#-características-principales)
-- [⚡ Comandos Rápidos](#-comandos-rápidos)
-- [📅 Sistema de Calendario](#-sistema-de-calendario)
-- [💰 Economía Virtual](#-economía-virtual)
-- [🤖 Asistente de IA](#-asistente-de-ia)
-- [🎮 Juegos Integrados](#-juegos-integrados)
-- [🔧 Instalación](#-instalación)
-- [⚙️ Configuración](#-configuración)
-- [🏗️ Estructura del Proyecto](#️-estructura-del-proyecto)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)](https://www.python.org/)
+[![discord.py](https://img.shields.io/badge/discord.py-2.3%2B-5865F2?logo=discord)](https://discordpy.readthedocs.io/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase)](https://supabase.com/)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 ---
 
-## 🚀 **Características Principales**
+## 📋 Índice
 
-| Característica | Descripción | Estado |
-|----------------|-------------|---------|
-| **📅 Calendario Multiplataforma** | Sincronización automática con Google y Moodle | ✅ **Activo** |
-| **💰 Sistema Económico** | Monedas virtuales, transferencias y robos | ✅ **Activo** |
-| **🎮 Juegos Interactivos** | Blackjack y Wordless integrados | ✅ **Activo** |
-| **🤖 Asistente de IA** | Integración con modelos avanzados vía OpenRouter | ✅ **Activo** |
-| **🏆 Leaderboard en Vivo** | Clasificación actualizada automáticamente | ✅ **Activo** |
-| **⚡ Arquitectura Modular** | Cada comando es independiente y escalable | ✅ **Activo** |
-
----
-
-## ⚡ **Comandos Rápidos**
-
-### **Comandos Generales**
-| Comando | Descripción | Ejemplo |
-|---------|-------------|---------|
-| `/ping` | Comprueba la conectividad con el bot | `/ping` |
-| `/sudo` | Panel de administración (solo admins) | `/sudo` |
+- [✨ Características](#-características)
+- [🏗️ Arquitectura del Proyecto](#️-arquitectura-del-proyecto)
+- [🚀 Instalación](#-instalación)
+- [⚙️ Configuración](#️-configuración)
+- [🗄️ Configuración de la Base de Datos](#️-configuración-de-la-base-de-datos)
+- [📡 API Web Integrada](#-api-web-integrada)
+- [📖 Manual de Usuario](#-manual-de-usuario)
+- [🔧 Guía de Mantenibilidad](#-guía-de-mantenibilidad)
+- [📝 CHANGELOG](#-changelog)
 
 ---
 
-## 📅 **Sistema de Calendario**
+## ✨ Características
 
-Conecta múltiples fuentes para una gestión académica completa:
+| Módulo | Descripción | Estado |
+|--------|-------------|--------|
+| 📅 **Calendario** | Sincronización con Google Calendar y Moodle vía iCal | ✅ Activo |
+| 💰 **Economía** | Saldo, transferencias, robos y recompensas diarias | ✅ Activo |
+| 📈 **Criptomonedas** | Trading simulado de BTC, ETH y DOGE con precios históricos | ✅ Activo |
+| 🤖 **Asistente IA** | Integración con modelos LLM a través de OpenRouter | ✅ Activo |
+| 🎮 **Juegos** | Blackjack multijugador y Wordless (Wordle en español) | ✅ Activo |
+| 🏆 **Leaderboard** | Clasificación global actualizada en tiempo real | ✅ Activo |
+| 🌐 **Panel Web** | Dashboard de estado accesible en el puerto 8080 | ✅ Activo |
 
-```bash
-/calendario buscar <término>
-# Busca eventos en Google y Moodle
-# Ejemplo: /calendario buscar "examen matemáticas"
+---
 
-/calendario eventos
-# Muestra todos los eventos futuros sincronizados
+## 🏗️ Arquitectura del Proyecto
 
-/calendario examenes
-# Lista los próximos exámenes desde Google Calendar
+El bot sigue el patrón **Cog** de `discord.py`, que equivale a un patrón de **módulos desacoplados**: cada funcionalidad reside en su propio `Cog` (extensión), lo que permite cargar, recargar o deshabilitar módulos sin reiniciar el proceso principal.
 
-/calendario hoy
-# Tareas y exámenes programados para hoy
-
-/calendario tareas
-# Plazos de entrega próximos desde Moodle
+```
+Clase-Bot/
+├── main-bot.py                  # Punto de entrada: inicializa bot, Flask y Supabase
+├── requirements.txt             # Dependencias de Python (versiones fijadas)
+├── .env                         # Variables de entorno (⚠️ no subir a Git)
+├── .gitignore
+│
+└── cog/                         # Capa de extensiones (Cogs)
+    ├── commands/                # Comandos de uso general
+    │   ├── ping.py              # /ping — latencia del bot
+    │   ├── calendario.py        # Cog raíz del grupo /calendario
+    │   ├── calendario/
+    │   │   ├── buscar.py        # /calendario buscar <término>
+    │   │   ├── eventos.py       # /calendario eventos
+    │   │   ├── examenes.py      # /calendario examenes
+    │   │   ├── hoy.py           # /calendario hoy
+    │   │   └── tareas.py        # /calendario tareas
+    │   └── sudo/                # Comandos de administración (solo admins)
+    │       ├── commands/
+    │       │   └── sincronizar.py   # /sudo sincronizar
+    │       └── economy/
+    │           ├── give.py          # /sudo give <@usuario> <cantidad>
+    │           └── leatherboard.py  # /sudo leaderboard (actualizar embed)
+    │
+    ├── economia/                # Módulo de economía virtual
+    │   ├── economy.py           # Cog raíz del grupo /economy
+    │   └── economy/
+    │       ├── daily.py         # /economy diario
+    │       ├── robos.py         # /economy robar <@usuario>
+    │       ├── saldo.py         # /economy saldo [@usuario]
+    │       └── transferir.py    # /economy transferir <@usuario> <cantidad>
+    │
+    ├── economia/crypto/         # Submódulo de criptomonedas
+    │   ├── crypto.py            # Cog raíz del grupo /crypto
+    │   ├── buy.py               # /crypto comprar <moneda> <cantidad>
+    │   ├── precio.py            # /crypto precio <moneda>
+    │   ├── sell.py              # /crypto vender <moneda> <cantidad>
+    │   └── wallet.py            # /crypto wallet [@usuario]
+    │
+    ├── ia/
+    │   └── ia.py                # /ia <mensaje> [modelo]
+    │
+    └── juegos/
+        ├── blackjack.py         # /blackjack crear|unirse|...
+        ├── wordless.py          # /wordless crear|intento
+        └── wordless/
+            ├── objetivo-5-letras.json    # Palabras objetivo (secretas)
+            └── permitidas-5-letras.json  # Palabras válidas para intentos
 ```
 
-**🔗 Fuentes Soportadas:**
-- ✅ Google Calendar (eventos y exámenes)
-- ✅ Moodle/Canvas (tareas y plazos)
+### Diagrama de flujo de arranque
 
----
-
-## 💰 **Economía Virtual**
-
-Sistema económico completo con interacciones sociales:
-
-### **Gestión de Saldo**
-```bash
-/economy saldo [@usuario]
-# Ver tu saldo o el de otro usuario
-# Ejemplo: /economy saldo @usuario
-
-/economy transferir <@destinatario> <cantidad>
-# Envía dinero a otro usuario
-# Ejemplo: /economy transferir @amigo 500
-
-/economy diario
-# Reclama tu recompensa diaria
 ```
-
-### **Interacciones de Riesgo** ⚠️
-```bash
-/economy robar <@víctima>
-# Intenta robar dinero a otro usuario
-# ¡Puedes ser capturado y multado!
-```
-
-### **Características del Sistema:**
-- 💸 **Transferencias instantáneas**
-- 🎁 **Recompensas diarias progresivas**
-- 🚨 **Sistema anti-abuso integrado**
-- 📊 **Leaderboard automático**
-
----
-
-## 🤖 **Asistente de IA**
-
-Conectado a modelos avanzados a través de OpenRouter:
-
-```bash
-/ia <mensaje> [modelo]
-# Chatea con la IA (modelo opcional)
-
-# Ejemplos:
-/ia ¿Cómo resolver esta ecuación?
-/ia Explícame la fotosíntesis model:gpt-4
+python main-bot.py
+        │
+        ├─► Flask (hilo daemon, puerto 8080)
+        │
+        └─► bot.run(TOKEN)
+                │
+                └─► on_ready()
+                        ├─► load_all()   → carga los Cogs de cog/
+                        ├─► tree.sync()  → registra slash commands en Discord
+                        └─► start_background_tasks()
+                                └─► update_crypto_prices_loop() (cada 1h)
 ```
 
 ---
 
-## 🎮 **Juegos Integrados**
+## 🚀 Instalación
 
-### **🎲 BlackJack - Casino Virtual**
+### Requisitos previos
+
+| Herramienta | Versión mínima | Enlace |
+|-------------|----------------|--------|
+| Python | 3.10 | [python.org](https://www.python.org/downloads/) |
+| pip | Incluido con Python | — |
+| Cuenta Discord Developer | — | [discord.com/developers](https://discord.com/developers/applications) |
+| Proyecto Supabase | — | [supabase.com](https://supabase.com) |
+| API Key OpenRouter | — | [openrouter.ai](https://openrouter.ai) |
+
+### Paso 1 — Clonar el repositorio
+
 ```bash
-# 1. Crear partida
-/blackjack crear <apuesta_mínima>
-# Ejemplo: /blackjack crear 50
-
-# 2. Unirse a partida
-/blackjack unirse <apuesta>
-# Ejemplo: /blackjack unirse 100
-
-# Apuesta debe ser ≥ apuesta mínima
-# Múltiples jugadores pueden unirse
-```
-
-### **🔤 Wordless - Adivina la Palabra**
-```bash
-# 1. Iniciar juego
-/wordless crear
-# El bot elige una palabra secreta
-
-# 2. Hacer intentos
-/wordless intento <palabra>
-# Ejemplo: /wordless intento "casa"
-
-# Sistema de pistas por letras
-# Límite de intentos configurable
-```
-
----
-
-## 🔧 **Instalación**
-
-### **Requisitos Previos**
-- 🐍 **Python 3.8+**
-- 🚀 **Cuenta en [Supabase](https://supabase.com)**
-- 🔑 **API Key de [OpenRouter](https://openrouter.ai)**
-- 🤖 **Bot de Discord configurado**
-
-### **Pasos de Instalación**
-```bash
-# 1. Clonar repositorio
 git clone https://github.com/tuusuario/clase-bot.git
 cd clase-bot
+```
 
-# 2. Crear entorno virtual
+### Paso 2 — Crear y activar el entorno virtual
+
+```bash
+# Crear entorno virtual
 python -m venv venv
 
-# 3. Activar entorno
-# Windows:
-venv\Scripts\activate
-# Linux/Mac:
+# Activar en Linux / macOS
 source venv/bin/activate
 
-# 4. Instalar dependencias
-pip install -r requirements.txt
+# Activar en Windows (PowerShell)
+.\venv\Scripts\Activate.ps1
+```
 
-# 5. Configurar variables (ver sección siguiente)
-# 6. Ejecutar bot
+### Paso 3 — Instalar dependencias
+
+```bash
+pip install -r requirements.txt
+```
+
+### Paso 4 — Configurar las variables de entorno
+
+Copia la plantilla y rellena tus credenciales (ver sección [Configuración](#️-configuración)):
+
+```bash
+cp .env.example .env
+# Edita .env con tu editor favorito
+```
+
+### Paso 5 — Configurar la base de datos
+
+Ejecuta los scripts SQL de la sección [Configuración de la Base de Datos](#️-configuración-de-la-base-de-datos) en el editor SQL de tu proyecto Supabase.
+
+### Paso 6 — Ejecutar el bot
+
+```bash
 python main-bot.py
 ```
 
----
+Si el arranque es correcto verás en consola:
 
-## ⚙️ **Configuración**
-
-### **Archivo `.env`**
-```env
-# Discord
-DISCORD_TOKEN=tu_token_aqui
-CHANNEL_LEADERBOARD_ID=id_canal_leaderboard
-CHANNEL_TROPHY_ID=id_canal_ganadores
-CHANNEL_BET_ID=id_canal_apuestas
-
-# Inteligencia Artificial
-OPENROUTER_API_KEY=tu_clave_openrouter
-
-# Calendarios
-MOODLE_CALENDAR_URL=https://tumoodle.com/feed
-GOOGLE_CALENDAR_URL=https://calendar.google.com/ical/...
-
-# Base de Datos
-SUPABASE_URL=https://tuid.supabase.co
-SUPABASE_KEY=tu_clave_supabase
+```
+🌐 Iniciando servidor web en puerto 8080...
+🤖 Bot conectado como ClaseBot#1234
+✅ Cog cargado: blackjack.py
+✅ Cog cargado: wordless.py
+...
+📜 12 comandos cargados
+✅ Tareas en segundo plano iniciadas
 ```
 
-### **Configuración en Discord Developer Portal**
-1. Activar **Privileged Gateway Intents**:
-   - ✅ PRESENCE INTENT
-   - ✅ SERVER MEMBERS INTENT
-   - ✅ MESSAGE CONTENT INTENT
-2. Añadir permisos de bot:
-   - ✅ Read Messages
+---
+
+## ⚙️ Configuración
+
+### Archivo `.env`
+
+Crea un fichero `.env` en la raíz del proyecto con el siguiente contenido:
+
+```env
+# ── Discord ────────────────────────────────────────────────
+DISCORD_TOKEN=tu_token_de_bot_aqui
+
+# IDs de canales (formato: número entero)
+CHANNEL_LEADERBOARD_ID=123456789012345678
+CHANNEL_TROPHY_ID=123456789012345679
+CHANNEL_BET_ID=123456789012345680
+
+# ── Inteligencia Artificial ────────────────────────────────
+OPENROUTER_API_KEY=sk-or-v1-...
+
+# ── Calendarios (URLs públicas iCal) ──────────────────────
+MOODLE_CALENDAR_URL=https://tu-moodle.com/calendar/export_execute.php?...
+GOOGLE_CALENDAR_URL=https://calendar.google.com/calendar/ical/...%40group.calendar.google.com/public/basic.ics
+
+# ── Base de Datos (Supabase) ───────────────────────────────
+SUPABASE_URL=https://xxxxxxxxxxx.supabase.co
+SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+> ⚠️ **Nunca subas `.env` a Git.** El fichero ya está incluido en `.gitignore`.
+
+### Configuración del Bot en Discord Developer Portal
+
+1. Accede a [discord.com/developers/applications](https://discord.com/developers/applications) y selecciona tu aplicación.
+2. En la pestaña **Bot**, activa los tres **Privileged Gateway Intents**:
+   - ✅ Presence Intent
+   - ✅ Server Members Intent
+   - ✅ Message Content Intent
+3. En la pestaña **OAuth2 → URL Generator**, selecciona los scopes `bot` y `applications.commands`, y los permisos:
+   - ✅ Read Messages / View Channels
    - ✅ Send Messages
    - ✅ Embed Links
    - ✅ Use Slash Commands
+   - ✅ Manage Messages *(necesario para el leaderboard)*
+4. Usa la URL generada para invitar el bot a tu servidor.
 
 ---
 
-## 🗂️ **Configuración de Supabase**
+## 🗄️ Configuración de la Base de Datos
 
-### **Archivo `sql`**
+Ejecuta este script completo en el **SQL Editor** de tu proyecto Supabase.
+
+### Diagrama Entidad-Relación
+
+```
+┌─────────────────────────────┐        ┌──────────────────────────────────┐
+│           players           │        │          crypto_wallets           │
+├─────────────────────────────┤        ├──────────────────────────────────┤
+│ PK  discord_id    TEXT      │──────► │ PK  discord_id       TEXT        │
+│     username      TEXT      │  1:1   │     btc_balance       REAL       │
+│     balance       INTEGER   │        │     eth_balance       REAL       │
+│     daily_streak  INTEGER   │        │     dog_balance       REAL       │
+│     last_daily    TIMESTAMPTZ│       │     total_invested    REAL       │
+│     last_rob      INTEGER   │        │     total_withdrawn   REAL       │
+│     created_at    TIMESTAMPTZ│       │     last_*_trade      TIMESTAMPTZ│
+└─────────────────────────────┘        └──────────────────────────────────┘
+
+┌──────────────────────────────────┐   ┌──────────────────────────────────┐
+│          crypto_prices           │   │       crypto_current_prices      │
+├──────────────────────────────────┤   ├──────────────────────────────────┤
+│ PK  id           SERIAL          │   │ PK  crypto     TEXT              │
+│     timestamp    TIMESTAMPTZ     │   │     price      REAL              │
+│     btc_price    REAL            │   │     last_update TIMESTAMPTZ      │
+│     eth_price    REAL            │   └──────────────────────────────────┘
+│     dog_price    REAL            │
+└──────────────────────────────────┘
+```
+
+### Script SQL de creación
+
 ```sql
--- 1. Tabla de jugadores
+-- ── Tabla principal de jugadores ──────────────────────────
 CREATE TABLE players (
-    discord_id TEXT PRIMARY KEY,
-    username TEXT,
-    balance INTEGER DEFAULT 500,
-    daily_streak INTEGER DEFAULT 0,
-    last_daily TIMESTAMP WITH TIME ZONE,
-    last_rob INTEGER DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    discord_id    TEXT PRIMARY KEY,
+    username      TEXT                      NOT NULL,
+    balance       INTEGER                   DEFAULT 500,
+    daily_streak  INTEGER                   DEFAULT 0,
+    last_daily    TIMESTAMP WITH TIME ZONE,
+    last_rob      INTEGER                   DEFAULT 0,
+    created_at    TIMESTAMP WITH TIME ZONE  DEFAULT NOW()
 );
 
--- 2. Tabla de wallets de criptomonedas
+-- ── Wallets de criptomonedas ──────────────────────────────
 CREATE TABLE crypto_wallets (
-    discord_id TEXT PRIMARY KEY,
-    btc_balance REAL DEFAULT 0,
-    eth_balance REAL DEFAULT 0,
-    dog_balance REAL DEFAULT 0,
-    last_btc_trade TIMESTAMP WITH TIME ZONE,
-    last_eth_trade TIMESTAMP WITH TIME ZONE,
-    last_dog_trade TIMESTAMP WITH TIME ZONE,
-    total_invested REAL DEFAULT 0,
-    total_withdrawn REAL DEFAULT 0
+    discord_id       TEXT PRIMARY KEY REFERENCES players(discord_id),
+    btc_balance      REAL    DEFAULT 0,
+    eth_balance      REAL    DEFAULT 0,
+    dog_balance      REAL    DEFAULT 0,
+    last_btc_trade   TIMESTAMP WITH TIME ZONE,
+    last_eth_trade   TIMESTAMP WITH TIME ZONE,
+    last_dog_trade   TIMESTAMP WITH TIME ZONE,
+    total_invested   REAL    DEFAULT 0,
+    total_withdrawn  REAL    DEFAULT 0
 );
 
--- 3. Tabla de precios históricos
+-- ── Historial de precios (serie temporal) ─────────────────
 CREATE TABLE crypto_prices (
-    id SERIAL PRIMARY KEY,
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    btc_price REAL,
-    eth_price REAL,
-    dog_price REAL
+    id         SERIAL PRIMARY KEY,
+    timestamp  TIMESTAMP WITH TIME ZONE  DEFAULT NOW(),
+    btc_price  REAL,
+    eth_price  REAL,
+    dog_price  REAL
 );
 
--- 4. Tabla de precios actuales
+-- ── Precio actual por moneda ──────────────────────────────
 CREATE TABLE crypto_current_prices (
-    crypto TEXT PRIMARY KEY,
-    price REAL,
-    last_update TIMESTAMP WITH TIME ZONE
+    crypto       TEXT PRIMARY KEY,
+    price        REAL,
+    last_update  TIMESTAMP WITH TIME ZONE
 );
 
--- 5. Insertar precios iniciales
+-- ── Datos iniciales ───────────────────────────────────────
 INSERT INTO crypto_current_prices (crypto, price, last_update) VALUES
     ('BTC', 10000, NOW()),
-    ('ETH', 3000, NOW()),
-    ('DOG', 50, NOW())
+    ('ETH', 3000,  NOW()),
+    ('DOG', 50,    NOW())
 ON CONFLICT (crypto) DO NOTHING;
 
--- 6. Insertar primer registro histórico
-INSERT INTO crypto_prices (btc_price, eth_price, dog_price) VALUES
-    (10000, 3000, 50);
+INSERT INTO crypto_prices (btc_price, eth_price, dog_price)
+VALUES (10000, 3000, 50);
 ```
 
-### Archivo de claves RLS
+### Políticas de seguridad (Row Level Security)
+
 ```sql
 -- Habilitar RLS en todas las tablas
-ALTER TABLE players ENABLE ROW LEVEL SECURITY;
-ALTER TABLE crypto_wallets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE crypto_prices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE players               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crypto_wallets        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crypto_prices         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE crypto_current_prices ENABLE ROW LEVEL SECURITY;
 
--- Crear políticas para permitir todas las operaciones (para tu bot)
+-- Acceso total para el service role del bot
+CREATE POLICY "Bot full access – players"
+    ON players FOR ALL USING (true);
 
--- Políticas para players
-CREATE POLICY "Allow all operations on players" ON players
-    FOR ALL USING (true);
+CREATE POLICY "Bot full access – crypto_wallets"
+    ON crypto_wallets FOR ALL USING (true);
 
--- Políticas para crypto_wallets
-CREATE POLICY "Allow all operations on crypto_wallets" ON crypto_wallets
-    FOR ALL USING (true);
+CREATE POLICY "Public read – crypto_prices"
+    ON crypto_prices FOR SELECT USING (true);
 
--- Políticas para crypto_prices (solo lectura pública)
-CREATE POLICY "Allow read on crypto_prices" ON crypto_prices
-    FOR SELECT USING (true);
-
--- Políticas para crypto_current_prices (solo lectura pública)
-CREATE POLICY "Allow read on crypto_current_prices" ON crypto_current_prices
-    FOR SELECT USING (true);
+CREATE POLICY "Public read – crypto_current_prices"
+    ON crypto_current_prices FOR SELECT USING (true);
 ```
 
 ---
 
-## 🏗️ **Estructura del Proyecto**
+## 📡 API Web Integrada
 
-```
-Clase-Bot_v5/
-├── 📁 cog/                    # Extensiones modulares
-│   ├── 📁 commands/          # Comandos principales
-│   │   ├── 📁 calendario/    # Sistema completo de calendario
-│   │   │   ├── buscar.py     # 🔍 Búsqueda de eventos
-│   │   │   ├── eventos.py    # 📋 Lista de eventos
-│   │   │   ├── examenes.py   # 📝 Próximos exámenes
-│   │   │   ├── hoy.py        # 📅 Eventos de hoy
-│   │   │   └── tareas.py     # ✅ Plazos de tareas
-│   │   ├── ping.py          # 🏓 Comando de conectividad
-│   │   └── 📁 sudo/         # 👑 Comandos de administración
-│   │       ├── 📁 commands/
-│   │       │   └── sincronizar.py  # 🔄 Sincronización manual
-│   │       └── 📁 economy/
-│   │           ├── give.py          # 💸 Otorgar dinero
-│   │           └── leaderboard.py   # 🏆 Tabla de clasificación
-│   ├── 📁 economia/          # 💰 Sistema económico
-│   │   ├── 📁 economy/
-│   │   │   ├── daily.py     # 🎁 Recompensa diaria
-│   │   │   ├── robos.py     # 🦹 Robos entre usuarios
-│   │   │   ├── saldo.py     # 💳 Consultar saldo
-│   │   │   └── transferir.py # 🔄 Transferencias
-│   │   └── economy.py       # 🔌 Cog principal de economía
-│   ├── 📁 ia/               # 🤖 Inteligencia Artificial
-│   │   └── ia.py           # 💬 Interacción con modelos
-│   └── 📁 juegos/           # 🎮 Sistema de juegos
-│       ├── blackjack.py    # 🎲 Juego de blackjack
-│       └── wordless.py     # 🔤 Juego de adivinanza
-├── main-bot.py             # 🚀 Punto de entrada principal
-├── requirements.txt        # 📦 Dependencias de Python
-├── render.yaml            # ☁️ Configuración de despliegue
-└── README.md              # 📖 Este archivo
+El bot expone un pequeño servidor **Flask** (puerto `8080`) útil para plataformas de hosting como Render o Railway, que requieren un endpoint HTTP para verificar que el proceso sigue vivo.
+
+### `GET /`
+
+Devuelve el panel HTML de estado del bot.
+
+**Respuesta:** `text/html` con los contadores de servidores, usuarios y uptime.
+
+---
+
+### `GET /health`
+
+Endpoint de health-check para balanceadores de carga y monitores externos.
+
+**Respuesta `200 OK`:**
+
+```json
+{
+  "status": "online",
+  "timestamp": "2025-12-11T14:07:00.000000",
+  "service": "discord_bot",
+  "version": "1.0.0"
+}
 ```
 
----
-
-## 🔮 **Roadmap v5-final**
-
-### **🚧 En Desarrollo Inmediato**
-- [ ] **Criptomonedas Virtuales** 📈
-  - Sistema de trading básico
-  - Fluctuación de precios simulada
-  - Mercado de intercambio P2P
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `status` | `string` | `"online"` \| `"iniciando"` \| `"error"` |
+| `timestamp` | `string` | Fecha y hora ISO 8601 de la consulta |
+| `service` | `string` | Identificador del servicio |
+| `version` | `string` | Versión del bot |
 
 ---
 
-## 🛠️ **Tecnologías Utilizadas**
+### `GET /api/stats`
 
-| Tecnología | Versión | Uso |
-|------------|---------|-----|
-| **discord.py** | 2.3+ | Interacción con Discord API |
-| **Supabase** | Latest | Base de datos en tiempo real |
-| **OpenRouter API** | - | Acceso a modelos de IA |
-| **ics.py** | Latest | Parseo de calendarios iCal |
-| **requests** | 2.31+ | Comunicación HTTP |
-| **python-dotenv** | Latest | Gestión de variables de entorno |
-| **Flask** | Latest | Creación de Web local |
+Devuelve estadísticas en tiempo real del bot en formato JSON.
+
+**Respuesta `200 OK`:**
+
+```json
+{
+  "status": "online",
+  "start_time": "2025-12-11 14:07:00",
+  "guild_count": 3,
+  "user_count": 142,
+  "command_count": 12
+}
+```
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `status` | `string` | Estado actual del proceso |
+| `start_time` | `string` | Marca temporal de inicio (`YYYY-MM-DD HH:MM:SS`) |
+| `guild_count` | `integer` | Número de servidores en los que está el bot |
+| `user_count` | `integer` | Total de miembros en todos los servidores |
+| `command_count` | `integer` | Slash commands registrados en Discord |
+
+> **Nota:** Si el endpoint devuelve `{"status": "iniciando"}`, el bot aún está en proceso de arranque. Reintentar en unos segundos.
 
 ---
 
-## 🤝 **Contribuir al Proyecto**
+## 📖 Manual de Usuario
 
-### **Reportar Problemas**
-1. Verifica si el problema ya existe en los **Issues**
-2. Crea un nuevo issue con:
-   - Descripción clara del problema
-   - Pasos para reproducirlo
-   - Capturas de pantalla (si aplica)
-   - Logs de error (si existen)
+### Comandos generales
 
-### **Sugerir Mejoras**
-¡Las nuevas ideas son bienvenidas! Usa la plantilla de **Feature Request** e incluye:
-- Descripción detallada de la funcionalidad
-- Casos de uso concretos
-- Beneficios para la comunidad
+#### `/ping`
 
-### **Desarrollo Local**
+Comprueba la latencia entre Discord y el bot.
+
+```
+/ping
+→ 🏓 Pong! Latencia: 48ms
+```
+
+---
+
+### Calendario académico
+
+Todos los comandos del calendario se agrupan bajo `/calendario`.
+
+| Comando | Descripción |
+|---------|-------------|
+| `/calendario hoy` | Muestra los exámenes y tareas programadas para el día de hoy |
+| `/calendario eventos` | Lista todos los eventos futuros sincronizados |
+| `/calendario examenes` | Próximos exámenes desde Google Calendar |
+| `/calendario tareas` | Plazos de entrega próximos desde Moodle |
+| `/calendario buscar <término>` | Busca un evento por nombre en ambas fuentes |
+
+**Ejemplo:**
+
+```
+/calendario buscar matematicas
+→ 📅 Resultados para "matematicas":
+   • Examen Matemáticas II — 15 dic, 10:00h (Google Calendar)
+   • Entrega Práctica 3 — 18 dic, 23:59h (Moodle)
+```
+
+---
+
+### Economía virtual
+
+#### Consultar saldo
+
+```
+/economy saldo              → Tu propio saldo
+/economy saldo @usuario     → Saldo de otro usuario
+```
+
+#### Transferir monedas
+
+```
+/economy transferir @amigo 500
+→ ✅ Has enviado 500 monedas a @amigo
+```
+
+> La transferencia falla si no tienes saldo suficiente o si el destinatario no existe.
+
+#### Recompensa diaria
+
+```
+/economy diario
+→ 🎁 Has reclamado tu recompensa: +200 monedas (racha: 3 días)
+```
+
+La recompensa aumenta con la racha de días consecutivos. Reinicia si saltas un día.
+
+#### Robar a otro usuario
+
+```
+/economy robar @usuario
+→ ✅ ¡Éxito! Has robado 120 monedas a @usuario.
+→ ❌ ¡Te han pillado! Multa de 100 monedas.
+```
+
+> El resultado es probabilístico. Existe un cooldown entre robos.
+
+---
+
+### Criptomonedas virtuales
+
+Las monedas disponibles son `BTC`, `ETH` y `DOG`. Los precios fluctúan cada hora.
+
+```
+/crypto precio BTC           → 📈 Precio actual de BTC: 10,432 monedas
+/crypto comprar BTC 2        → ✅ Has comprado 2 BTC por 20,864 monedas
+/crypto vender ETH 1         → ✅ Has vendido 1 ETH por 3,150 monedas
+/crypto wallet               → 💼 Tu cartera: 2 BTC · 0 ETH · 50 DOG
+```
+
+---
+
+### Asistente de IA
+
+```
+/ia ¿Qué es el teorema de Pitágoras?
+/ia Explícame la fotosíntesis modelo:gpt-4o
+```
+
+El modelo por defecto es `tngtech/deepseek-r1t-chimera:free`. Puedes especificar cualquier modelo disponible en [openrouter.ai/models](https://openrouter.ai/models).
+
+---
+
+### Juegos
+
+#### Blackjack
+
+```
+# 1. Un jugador crea la partida con apuesta mínima
+/blackjack crear 50
+
+# 2. Otros jugadores se unen
+/blackjack unirse 100
+
+# 3. La partida comienza automáticamente
+# Los ganadores reciben su apuesta x2
+```
+
+#### Wordless (Wordle en español)
+
+```
+# 1. Iniciar partida
+/wordless crear
+→ 🔤 ¡Nueva partida! Adivina la palabra de 5 letras.
+
+# 2. Introducir intentos
+/wordless intento gatos
+→ 🟩🟨⬛⬛🟩
+   G=✅ A=🔶 T=❌ O=❌ S=✅
+```
+
+Leyenda de colores: 🟩 letra en posición correcta · 🟨 letra en la palabra pero en otra posición · ⬛ letra no está en la palabra.
+
+---
+
+### Comandos de administración (`/sudo`)
+
+> Estos comandos requieren permisos de administrador en el servidor.
+
+| Comando | Descripción |
+|---------|-------------|
+| `/sudo sincronizar` | Fuerza la sincronización del calendario con Google y Moodle |
+| `/sudo give @usuario <cantidad>` | Otorga monedas a un usuario |
+| `/sudo leaderboard` | Actualiza el embed del leaderboard en el canal configurado |
+
+---
+
+## 🔧 Guía de Mantenibilidad
+
+### Añadir un nuevo comando de economía
+
+1. Crea un fichero en `cog/economia/economy/mi_comando.py`.
+2. Implementa la función `setup_command(group, cog)`:
+
+```python
+from discord import app_commands
+import discord
+
+def setup_command(group: app_commands.Group, cog):
+    @group.command(name="mi-comando", description="Descripción del comando")
+    async def mi_comando(interaction: discord.Interaction):
+        # Acceder a Supabase a través del bot
+        supabase = cog.bot.supabase
+        player = cog.bot.get_player(str(interaction.user.id), interaction.user.name)
+        await interaction.response.send_message("¡Funciona!")
+```
+
+3. El sistema de carga automática detectará el nuevo fichero en el arranque. No es necesario modificar `economy.py`.
+
+### Añadir un nuevo Cog independiente
+
+1. Crea el fichero en la carpeta de cog correspondiente (p. ej. `cog/juegos/mi_juego.py`).
+2. Implementa la función `setup(bot)` al final del fichero:
+
+```python
+async def setup(bot):
+    await bot.add_cog(MiJuegoCog(bot))
+```
+
+3. El bot lo cargará automáticamente en el siguiente arranque.
+
+### Dependencias
+
+Para añadir una nueva dependencia:
+
 ```bash
-# 1. Fork el repositorio
-# 2. Clona tu fork localmente
-# 3. Crea una rama para tu feature
-git checkout -b mi-nueva-feature
-# 4. Realiza tus cambios
-# 5. Haz commit y push
-# 6. Abre un Pull Request
+pip install nueva-libreria
+pip freeze | grep nueva-libreria >> requirements.txt
 ```
 
----
+Fija siempre la versión mínima en `requirements.txt` para garantizar reproducibilidad.
 
-## ❓ **Preguntas Frecuentes**
+### Variables de entorno
 
-### **¿Cómo sincronizo mi calendario?**
-1. Obtén la URL pública de tu calendario de Google/Moodle
-2. Añádela al archivo `.env`
-3. Usa `/sudo sincronizar` para forzar una sincronización
+Cualquier nueva variable de entorno debe:
+1. Añadirse al fichero `.env` local.
+2. Documentarse en este README dentro de la sección [Configuración](#️-configuración).
+3. Declararse en `.env.example` con un valor de placeholder (sin datos reales).
 
-### **¿Por qué no funcionan los comandos?**
-- Verifica que el bot tenga los permisos necesarios
-- Asegúrate de usar la barra diagonal (`/`) al inicio
-- Comprueba que el bot esté en línea con `/ping`
+### Ejecutar en producción (Render / Railway)
 
-### **¿Cómo obtener una API Key de OpenRouter?**
-1. Regístrate en [openrouter.ai](https://openrouter.ai)
-2. Ve a "API Keys" en tu dashboard
-3. Crea una nueva key y cópiala al `.env`
+El bot incluye un servidor Flask que responde en el puerto `8080`. Configura el health-check de tu plataforma apuntando a `GET /health`. Asegúrate de definir todas las variables de entorno del fichero `.env` en el panel de configuración de tu proveedor de hosting.
 
 ---
 
-## ✨ **Agradecimientos**
+## 📝 CHANGELOG
 
-Un especial agradecimiento a:
+### v5.1.0 — 2025-12-11
+- **Añadido:** Módulo completo de criptomonedas (`/crypto`) con BTC, ETH y DOGE.
+- **Añadido:** Panel web Flask en el puerto 8080 con endpoints `/health` y `/api/stats`.
+- **Añadido:** Tarea en segundo plano para actualizar precios cada hora.
+- **Mejorado:** `get_player()` crea automáticamente la wallet de criptomonedas al registrar un nuevo usuario.
 
-| Proyecto | Contribución |
-|----------|--------------|
-| **Discord.py** | Excelente librería para Python |
-| **Supabase** | Base de datos gratuita y potente |
-| **OpenRouter** | Acceso unificado a modelos de IA |
-| **Comunidad** | Por las pruebas y sugerencias |
+### v5.0.0 — 2025-12-03
+- **Añadido:** Sistema de economía virtual completo (saldo, transferir, robar, diario).
+- **Añadido:** Integración con OpenRouter para el asistente de IA (`/ia`).
+- **Añadido:** Juego Wordless en español con diccionario de 5 letras.
+- **Añadido:** Blackjack multijugador con apuestas.
+- **Añadido:** Sistema de calendario con sincronización Google Calendar y Moodle.
+- **Arquitectura:** Migración completa a arquitectura Cog modular.
+- **Base de datos:** Migración a Supabase (PostgreSQL en la nube).
+
+### v4.x — Versiones anteriores
+- Comandos de prefijo (`!comando`) sin slash commands.
+- Base de datos local SQLite.
 
 ---
 
-**⭐ ¡Dale una estrella al repositorio si te gusta el proyecto!**
+## 🛠️ Tecnologías
 
-*Última actualización: 3 Diciembre 2025 • Versión 5.0*
+| Librería | Versión | Propósito |
+|----------|---------|-----------|
+| `discord.py` | ≥ 2.3.0 | Interacción con la API de Discord |
+| `supabase` | latest | Cliente Python para Supabase / PostgreSQL |
+| `python-dotenv` | ≥ 1.0.0 | Carga de variables de entorno desde `.env` |
+| `requests` | ≥ 2.31.0 | Llamadas HTTP síncronas (OpenRouter, calendarios) |
+| `aiohttp` | latest | Llamadas HTTP asíncronas |
+| `icalendar` | ≥ 5.0.0 | Parseo de ficheros iCal (.ics) |
+| `pytz` | ≥ 2023.3 | Gestión de zonas horarias |
+| `Flask` | latest | Servidor web de estado integrado |
+| `postgrest` | latest | Dependencia interna de `supabase-py` |
+
+---
+
+## 🤝 Contribuir
+
+1. Haz un **fork** del repositorio.
+2. Crea una rama con un nombre descriptivo:
+   ```bash
+   git checkout -b feat/nombre-de-la-funcionalidad
+   ```
+3. Realiza tus cambios siguiendo el patrón de Cog existente.
+4. Haz commit con un mensaje claro:
+   ```bash
+   git commit -m "feat(economia): añadir comando /economy invertir"
+   ```
+5. Abre un **Pull Request** describiendo el propósito del cambio y cualquier decisión de diseño relevante.
+
+---
+
+*Última actualización: 11 de diciembre de 2025 · Versión 5.1.0*
