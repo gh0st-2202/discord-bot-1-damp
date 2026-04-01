@@ -541,7 +541,7 @@ El modelo por defecto es `tngtech/deepseek-r1t-chimera:free`. Puedes especificar
 # 2. Introducir intentos
 /wordless intento gatos
 → 🟩🟨⬛⬛🟩
-   G=✅ A=🔶 T=❌ O=❌ S=✅
+   G=✅ A=🟨 T=❌ O=❌ S=✅
 ```
 
 Leyenda de colores: 🟩 letra en posición correcta · 🟨 letra en la palabra pero en otra posición · ⬛ letra no está en la palabra.
