@@ -42,73 +42,90 @@
 El bot sigue el patrón **Cog** de `discord.py`, que equivale a un patrón de **módulos desacoplados**: cada funcionalidad reside en su propio `Cog` (extensión), lo que permite cargar, recargar o deshabilitar módulos sin reiniciar el proceso principal.
 
 ```mermaid
-graph LR
-    ROOT(["📁 Clase-Bot/"])
+flowchart TD
+    MAIN["🚀 main-bot.py"]
+    REQ["📦 requirements.txt"]
+    ENV["🔒 .env"]
 
-    ROOT --> MAIN["🚀 main-bot.py"]
-    ROOT --> REQ["📦 requirements.txt"]
-    ROOT --> ENV["🔒 .env"]
-    ROOT --> GIT["🙈 .gitignore"]
-    ROOT --> COG(["📁 cog/"])
+    subgraph ROOT["📁 Clase-Bot/"]
+        MAIN
+        REQ
+        ENV
 
-    COG --> CMD(["📁 commands/"])
-    COG --> ECO(["📁 economia/"])
-    COG --> IA(["📁 ia/"])
-    COG --> JUE(["📁 juegos/"])
+        subgraph COG["📁 cog/"]
 
-    CMD --> PING["🏓 ping.py"]
-    CMD --> CALPKG["📅 calendario.py"]
-    CMD --> CALDIR(["📁 calendario/"])
-    CMD --> SUDODIR(["📁 sudo/"])
+            subgraph CMD["📁 commands/"]
+                PING["🏓 ping.py"]
+                CALPKG["📅 calendario.py"]
 
-    CALDIR --> BUSCAR["🔍 buscar.py"]
-    CALDIR --> EVENTOS["📋 eventos.py"]
-    CALDIR --> EXAMS["📝 examenes.py"]
-    CALDIR --> HOY["📅 hoy.py"]
-    CALDIR --> TAREAS["✅ tareas.py"]
+                subgraph CALDIR["📁 calendario/"]
+                    BUSCAR["🔍 buscar.py"]
+                    EVENTOS["📋 eventos.py"]
+                    EXAMS["📝 examenes.py"]
+                    HOY["📅 hoy.py"]
+                    TAREAS["✅ tareas.py"]
+                end
 
-    SUDODIR --> SUDOCMD(["📁 commands/"])
-    SUDODIR --> SUDOECO(["📁 economy/"])
-    SUDOCMD --> SYNC["🔄 sincronizar.py"]
-    SUDOECO --> GIVE["💸 give.py"]
-    SUDOECO --> LB["🏆 leatherboard.py"]
+                subgraph SUDODIR["📁 sudo/"]
+                    subgraph SUDOCMD["📁 commands/"]
+                        SYNC["🔄 sincronizar.py"]
+                    end
+                    subgraph SUDOECO["📁 economy/"]
+                        GIVE["💸 give.py"]
+                        LB["🏆 leatherboard.py"]
+                    end
+                end
+            end
 
-    ECO --> ECONPKG["💰 economy.py"]
-    ECO --> ECONDIR(["📁 economy/"])
-    ECO --> CRYPTOPKG["📈 crypto.py"]
-    ECO --> CRYPTODIR(["📁 crypto/"])
+            subgraph ECO["📁 economia/"]
+                ECONPKG["💰 economy.py"]
+                CRYPTOPKG["📈 crypto.py"]
 
-    ECONDIR --> DAILY["🎁 daily.py"]
-    ECONDIR --> ROBOS["🦹 robos.py"]
-    ECONDIR --> SALDO["💳 saldo.py"]
-    ECONDIR --> TRANSF["🔄 transferir.py"]
+                subgraph ECONDIR["📁 economy/"]
+                    DAILY["🎁 daily.py"]
+                    ROBOS["🦹 robos.py"]
+                    SALDO["💳 saldo.py"]
+                    TRANSF["🔄 transferir.py"]
+                end
 
-    CRYPTODIR --> BUY["🟢 buy.py"]
-    CRYPTODIR --> PRECIO["📊 precio.py"]
-    CRYPTODIR --> SELL["🔴 sell.py"]
-    CRYPTODIR --> WALLET["👜 wallet.py"]
+                subgraph CRYPTODIR["📁 crypto/"]
+                    BUY["🟢 buy.py"]
+                    PRECIO["📊 precio.py"]
+                    SELL["🔴 sell.py"]
+                    WALLET["👜 wallet.py"]
+                end
+            end
 
-    IA --> IASCRIPT["🤖 ia.py"]
+            subgraph IA["📁 ia/"]
+                IASCRIPT["🤖 ia.py"]
+            end
 
-    JUE --> BJ["🎲 blackjack.py"]
-    JUE --> WL["🔤 wordless.py"]
-    JUE --> WLDIR(["📁 wordless/"])
-    WLDIR --> OBJ["🎯 objetivo-5-letras.json"]
-    WLDIR --> PERM["📖 permitidas-5-letras.json"]
+            subgraph JUE["📁 juegos/"]
+                BJ["🎲 blackjack.py"]
+                WL["🔤 wordless.py"]
 
-    style ROOT fill:#5865F2,color:#fff,font-weight:bold
+                subgraph WLDIR["📁 wordless/"]
+                    OBJ["🎯 objetivo-5-letras.json"]
+                    PERM["📖 permitidas-5-letras.json"]
+                end
+            end
+
+        end
+    end
+
+    style ROOT fill:#5865F2,color:#fff
     style COG fill:#4f545c,color:#fff
-    style CMD fill:#4f545c,color:#fff
-    style ECO fill:#4f545c,color:#fff
-    style IA fill:#4f545c,color:#fff
-    style JUE fill:#4f545c,color:#fff
-    style CALDIR fill:#36393f,color:#fff
-    style SUDODIR fill:#36393f,color:#fff
-    style SUDOCMD fill:#36393f,color:#fff
-    style SUDOECO fill:#36393f,color:#fff
-    style ECONDIR fill:#36393f,color:#fff
-    style CRYPTODIR fill:#36393f,color:#fff
-    style WLDIR fill:#36393f,color:#fff
+    style CMD fill:#2b2d31,color:#fff
+    style CALDIR fill:#1e1f22,color:#fff
+    style SUDODIR fill:#2b2d31,color:#fff
+    style SUDOCMD fill:#1e1f22,color:#fff
+    style SUDOECO fill:#1e1f22,color:#fff
+    style ECO fill:#2b2d31,color:#fff
+    style ECONDIR fill:#1e1f22,color:#fff
+    style CRYPTODIR fill:#1e1f22,color:#fff
+    style IA fill:#2b2d31,color:#fff
+    style JUE fill:#2b2d31,color:#fff
+    style WLDIR fill:#1e1f22,color:#fff
 ```
 
 ### Diagrama de flujo de arranque
