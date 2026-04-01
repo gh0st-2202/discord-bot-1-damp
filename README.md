@@ -42,90 +42,48 @@
 El bot sigue el patrón **Cog** de `discord.py`, que equivale a un patrón de **módulos desacoplados**: cada funcionalidad reside en su propio `Cog` (extensión), lo que permite cargar, recargar o deshabilitar módulos sin reiniciar el proceso principal.
 
 ```mermaid
-flowchart TD
-    MAIN["🚀 main-bot.py"]
-    REQ["📦 requirements.txt"]
-    ENV["🔒 .env"]
-
-    subgraph ROOT["📁 Clase-Bot/"]
-        MAIN
-        REQ
-        ENV
-
-        subgraph COG["📁 cog/"]
-
-            subgraph CMD["📁 commands/"]
-                PING["🏓 ping.py"]
-                CALPKG["📅 calendario.py"]
-
-                subgraph CALDIR["📁 calendario/"]
-                    BUSCAR["🔍 buscar.py"]
-                    EVENTOS["📋 eventos.py"]
-                    EXAMS["📝 examenes.py"]
-                    HOY["📅 hoy.py"]
-                    TAREAS["✅ tareas.py"]
-                end
-
-                subgraph SUDODIR["📁 sudo/"]
-                    subgraph SUDOCMD["📁 commands/"]
-                        SYNC["🔄 sincronizar.py"]
-                    end
-                    subgraph SUDOECO["📁 economy/"]
-                        GIVE["💸 give.py"]
-                        LB["🏆 leatherboard.py"]
-                    end
-                end
-            end
-
-            subgraph ECO["📁 economia/"]
-                ECONPKG["💰 economy.py"]
-                CRYPTOPKG["📈 crypto.py"]
-
-                subgraph ECONDIR["📁 economy/"]
-                    DAILY["🎁 daily.py"]
-                    ROBOS["🦹 robos.py"]
-                    SALDO["💳 saldo.py"]
-                    TRANSF["🔄 transferir.py"]
-                end
-
-                subgraph CRYPTODIR["📁 crypto/"]
-                    BUY["🟢 buy.py"]
-                    PRECIO["📊 precio.py"]
-                    SELL["🔴 sell.py"]
-                    WALLET["👜 wallet.py"]
-                end
-            end
-
-            subgraph IA["📁 ia/"]
-                IASCRIPT["🤖 ia.py"]
-            end
-
-            subgraph JUE["📁 juegos/"]
-                BJ["🎲 blackjack.py"]
-                WL["🔤 wordless.py"]
-
-                subgraph WLDIR["📁 wordless/"]
-                    OBJ["🎯 objetivo-5-letras.json"]
-                    PERM["📖 permitidas-5-letras.json"]
-                end
-            end
-
-        end
-    end
-
-    style ROOT fill:#5865F2,color:#fff
-    style COG fill:#4f545c,color:#fff
-    style CMD fill:#2b2d31,color:#fff
-    style CALDIR fill:#1e1f22,color:#fff
-    style SUDODIR fill:#2b2d31,color:#fff
-    style SUDOCMD fill:#1e1f22,color:#fff
-    style SUDOECO fill:#1e1f22,color:#fff
-    style ECO fill:#2b2d31,color:#fff
-    style ECONDIR fill:#1e1f22,color:#fff
-    style CRYPTODIR fill:#1e1f22,color:#fff
-    style IA fill:#2b2d31,color:#fff
-    style JUE fill:#2b2d31,color:#fff
-    style WLDIR fill:#1e1f22,color:#fff
+mindmap
+  root(📁 Clase-Bot)
+    🚀 main-bot.py
+    📦 requirements.txt
+    🔒 .env
+    📁 cog
+      📁 commands
+        🏓 ping.py
+        📅 calendario.py
+        📁 calendario
+          🔍 buscar.py
+          📋 eventos.py
+          📝 examenes.py
+          📅 hoy.py
+          ✅ tareas.py
+        📁 sudo
+          📁 commands
+            🔄 sincronizar.py
+          📁 economy
+            💸 give.py
+            🏆 leatherboard.py
+      📁 economia
+        💰 economy.py
+        📁 economy
+          🎁 daily.py
+          🦹 robos.py
+          💳 saldo.py
+          🔄 transferir.py
+        📈 crypto.py
+        📁 crypto
+          🟢 buy.py
+          📊 precio.py
+          🔴 sell.py
+          👜 wallet.py
+      📁 ia
+        🤖 ia.py
+      📁 juegos
+        🎲 blackjack.py
+        🔤 wordless.py
+        📁 wordless
+          🎯 objetivo-5-letras.json
+          📖 permitidas-5-letras.json
 ```
 
 ### Diagrama de flujo de arranque
