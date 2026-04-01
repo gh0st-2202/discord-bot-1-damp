@@ -41,54 +41,74 @@
 
 El bot sigue el patrón **Cog** de `discord.py`, que equivale a un patrón de **módulos desacoplados**: cada funcionalidad reside en su propio `Cog` (extensión), lo que permite cargar, recargar o deshabilitar módulos sin reiniciar el proceso principal.
 
-```
-Clase-Bot/
-├── main-bot.py                  # Punto de entrada: inicializa bot, Flask y Supabase
-├── requirements.txt             # Dependencias de Python (versiones fijadas)
-├── .env                         # Variables de entorno (⚠️ no subir a Git)
-├── .gitignore
-│
-└── cog/                         # Capa de extensiones (Cogs)
-    ├── commands/                # Comandos de uso general
-    │   ├── ping.py              # /ping — latencia del bot
-    │   ├── calendario.py        # Cog raíz del grupo /calendario
-    │   ├── calendario/
-    │   │   ├── buscar.py        # /calendario buscar <término>
-    │   │   ├── eventos.py       # /calendario eventos
-    │   │   ├── examenes.py      # /calendario examenes
-    │   │   ├── hoy.py           # /calendario hoy
-    │   │   └── tareas.py        # /calendario tareas
-    │   └── sudo/                # Comandos de administración (solo admins)
-    │       ├── commands/
-    │       │   └── sincronizar.py   # /sudo sincronizar
-    │       └── economy/
-    │           ├── give.py          # /sudo give <@usuario> <cantidad>
-    │           └── leatherboard.py  # /sudo leaderboard (actualizar embed)
-    │
-    ├── economia/                # Módulo de economía virtual
-    │   ├── economy.py           # Cog raíz del grupo /economy
-    │   └── economy/
-    │       ├── daily.py         # /economy diario
-    │       ├── robos.py         # /economy robar <@usuario>
-    │       ├── saldo.py         # /economy saldo [@usuario]
-    │       └── transferir.py    # /economy transferir <@usuario> <cantidad>
-    │
-    ├── economia/crypto/         # Submódulo de criptomonedas
-    │   ├── crypto.py            # Cog raíz del grupo /crypto
-    │   ├── buy.py               # /crypto comprar <moneda> <cantidad>
-    │   ├── precio.py            # /crypto precio <moneda>
-    │   ├── sell.py              # /crypto vender <moneda> <cantidad>
-    │   └── wallet.py            # /crypto wallet [@usuario]
-    │
-    ├── ia/
-    │   └── ia.py                # /ia <mensaje> [modelo]
-    │
-    └── juegos/
-        ├── blackjack.py         # /blackjack crear|unirse|...
-        ├── wordless.py          # /wordless crear|intento
-        └── wordless/
-            ├── objetivo-5-letras.json    # Palabras objetivo (secretas)
-            └── permitidas-5-letras.json  # Palabras válidas para intentos
+```mermaid
+graph LR
+    ROOT(["📁 Clase-Bot/"])
+
+    ROOT --> MAIN["🚀 main-bot.py"]
+    ROOT --> REQ["📦 requirements.txt"]
+    ROOT --> ENV["🔒 .env"]
+    ROOT --> GIT["🙈 .gitignore"]
+    ROOT --> COG(["📁 cog/"])
+
+    COG --> CMD(["📁 commands/"])
+    COG --> ECO(["📁 economia/"])
+    COG --> IA(["📁 ia/"])
+    COG --> JUE(["📁 juegos/"])
+
+    CMD --> PING["🏓 ping.py"]
+    CMD --> CALPKG["📅 calendario.py"]
+    CMD --> CALDIR(["📁 calendario/"])
+    CMD --> SUDODIR(["📁 sudo/"])
+
+    CALDIR --> BUSCAR["🔍 buscar.py"]
+    CALDIR --> EVENTOS["📋 eventos.py"]
+    CALDIR --> EXAMS["📝 examenes.py"]
+    CALDIR --> HOY["📅 hoy.py"]
+    CALDIR --> TAREAS["✅ tareas.py"]
+
+    SUDODIR --> SUDOCMD(["📁 commands/"])
+    SUDODIR --> SUDOECO(["📁 economy/"])
+    SUDOCMD --> SYNC["🔄 sincronizar.py"]
+    SUDOECO --> GIVE["💸 give.py"]
+    SUDOECO --> LB["🏆 leatherboard.py"]
+
+    ECO --> ECONPKG["💰 economy.py"]
+    ECO --> ECONDIR(["📁 economy/"])
+    ECO --> CRYPTOPKG["📈 crypto.py"]
+    ECO --> CRYPTODIR(["📁 crypto/"])
+
+    ECONDIR --> DAILY["🎁 daily.py"]
+    ECONDIR --> ROBOS["🦹 robos.py"]
+    ECONDIR --> SALDO["💳 saldo.py"]
+    ECONDIR --> TRANSF["🔄 transferir.py"]
+
+    CRYPTODIR --> BUY["🟢 buy.py"]
+    CRYPTODIR --> PRECIO["📊 precio.py"]
+    CRYPTODIR --> SELL["🔴 sell.py"]
+    CRYPTODIR --> WALLET["👜 wallet.py"]
+
+    IA --> IASCRIPT["🤖 ia.py"]
+
+    JUE --> BJ["🎲 blackjack.py"]
+    JUE --> WL["🔤 wordless.py"]
+    JUE --> WLDIR(["📁 wordless/"])
+    WLDIR --> OBJ["🎯 objetivo-5-letras.json"]
+    WLDIR --> PERM["📖 permitidas-5-letras.json"]
+
+    style ROOT fill:#5865F2,color:#fff,font-weight:bold
+    style COG fill:#4f545c,color:#fff
+    style CMD fill:#4f545c,color:#fff
+    style ECO fill:#4f545c,color:#fff
+    style IA fill:#4f545c,color:#fff
+    style JUE fill:#4f545c,color:#fff
+    style CALDIR fill:#36393f,color:#fff
+    style SUDODIR fill:#36393f,color:#fff
+    style SUDOCMD fill:#36393f,color:#fff
+    style SUDOECO fill:#36393f,color:#fff
+    style ECONDIR fill:#36393f,color:#fff
+    style CRYPTODIR fill:#36393f,color:#fff
+    style WLDIR fill:#36393f,color:#fff
 ```
 
 ### Diagrama de flujo de arranque
