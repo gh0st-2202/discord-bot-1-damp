@@ -41,49 +41,49 @@
 
 El bot sigue el patrón **Cog** de `discord.py`, que equivale a un patrón de **módulos desacoplados**: cada funcionalidad reside en su propio `Cog` (extensión), lo que permite cargar, recargar o deshabilitar módulos sin reiniciar el proceso principal.
 
-```mermaid
-mindmap
-  root(📁 Clase-Bot)
-    🚀 main-bot.py
-    📦 requirements.txt
-    🔒 .env
-    📁 cog
-      📁 commands
-        🏓 ping.py
-        📅 calendario.py
-        📁 calendario
-          🔍 buscar.py
-          📋 eventos.py
-          📝 examenes.py
-          📅 hoy.py
-          ✅ tareas.py
-        📁 sudo
-          📁 commands
-            🔄 sincronizar.py
-          📁 economy
-            💸 give.py
-            🏆 leatherboard.py
-      📁 economia
-        💰 economy.py
-        📁 economy
-          🎁 daily.py
-          🦹 robos.py
-          💳 saldo.py
-          🔄 transferir.py
-        📈 crypto.py
-        📁 crypto
-          🟢 buy.py
-          📊 precio.py
-          🔴 sell.py
-          👜 wallet.py
-      📁 ia
-        🤖 ia.py
-      📁 juegos
-        🎲 blackjack.py
-        🔤 wordless.py
-        📁 wordless
-          🎯 objetivo-5-letras.json
-          📖 permitidas-5-letras.json
+```
+📁 Clase-Bot/
+├── 🚀 main-bot.py              # Punto de entrada: bot, Flask y Supabase
+├── 📦 requirements.txt         # Dependencias con versiones fijadas
+├── 🔒 .env                     # Variables de entorno (no subir a Git)
+├── 🙈 .gitignore
+└── 📁 cog/                     # Capa de extensiones (patrón Cog)
+    ├── 📁 commands/            # Comandos de uso general
+    │   ├── 🏓 ping.py          # /ping — latencia del bot
+    │   ├── 📅 calendario.py    # Cog raíz del grupo /calendario
+    │   ├── 📁 calendario/
+    │   │   ├── 🔍 buscar.py    # /calendario buscar <término>
+    │   │   ├── 📋 eventos.py   # /calendario eventos
+    │   │   ├── 📝 examenes.py  # /calendario examenes
+    │   │   ├── 📅 hoy.py       # /calendario hoy
+    │   │   └── ✅ tareas.py    # /calendario tareas
+    │   └── 📁 sudo/            # Comandos de administración
+    │       ├── 📁 commands/
+    │       │   └── 🔄 sincronizar.py   # /sudo sincronizar
+    │       └── 📁 economy/
+    │           ├── 💸 give.py          # /sudo give <@usuario> <cantidad>
+    │           └── 🏆 leatherboard.py  # /sudo leaderboard
+    ├── 📁 economia/            # Módulo de economía virtual
+    │   ├── 💰 economy.py       # Cog raíz del grupo /economy
+    │   ├── 📁 economy/
+    │   │   ├── 🎁 daily.py     # /economy diario
+    │   │   ├── 🦹 robos.py     # /economy robar <@usuario>
+    │   │   ├── 💳 saldo.py     # /economy saldo [@usuario]
+    │   │   └── 🔄 transferir.py # /economy transferir
+    │   ├── 📈 crypto.py        # Cog raíz del grupo /crypto
+    │   └── 📁 crypto/
+    │       ├── 🟢 buy.py       # /crypto comprar <moneda> <cantidad>
+    │       ├── 📊 precio.py    # /crypto precio <moneda>
+    │       ├── 🔴 sell.py      # /crypto vender <moneda> <cantidad>
+    │       └── 👜 wallet.py    # /crypto wallet [@usuario]
+    ├── 📁 ia/
+    │   └── 🤖 ia.py            # /ia <mensaje> [modelo]
+    └── 📁 juegos/
+        ├── 🎲 blackjack.py     # /blackjack — casino multijugador
+        ├── 🔤 wordless.py      # /wordless — adivina la palabra
+        └── 📁 wordless/
+            ├── 🎯 objetivo-5-letras.json   # Palabras secretas
+            └── 📖 permitidas-5-letras.json # Palabras válidas
 ```
 
 ### Diagrama de flujo de arranque
